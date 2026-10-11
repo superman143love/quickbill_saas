@@ -49,6 +49,7 @@ def init_db():
     if cursor.fetchone()[0] == 0:
         cursor.execute("INSERT INTO settings (id, wholesaler_name, upi_id) VALUES (1, 'Apex Wholesale Distributors', 'apexdistributors@upi')")
     
+    # Safe migration check
     cursor.execute("PRAGMA table_info(receivables)")
     cols = [r[1] for r in cursor.fetchall()]
     if 'custom_qr_path' not in cols:
@@ -82,6 +83,7 @@ def dashboard_page():
     conn = sqlite3.connect("udhaar_system.db")
     cursor = conn.cursor()
     
+    # Metrics
     cursor.execute("SELECT COUNT(*), COALESCE(SUM(pending_amount), 0) FROM receivables WHERE status = 'PENDING'")
     total_bills, total_amount = cursor.fetchone()
     
@@ -89,9 +91,11 @@ def dashboard_page():
     cursor.execute("SELECT COUNT(*) FROM receivables WHERE status = 'PENDING' AND due_date <= ?", (today_str,))
     due_today_count = cursor.fetchone()[0]
 
+    # Active Pending Invoices
     cursor.execute("SELECT customer_name, phone, invoice_no, pending_amount, due_date, custom_qr_path FROM receivables WHERE status = 'PENDING' ORDER BY due_date ASC")
     pending_records = cursor.fetchall()
 
+    # Payment logs history
     cursor.execute("SELECT customer_name, invoice_no, amount_paid, remaining_balance, payment_mode, paid_at FROM payment_logs ORDER BY id DESC LIMIT 15")
     logs = cursor.fetchall()
     conn.close()
@@ -103,7 +107,7 @@ def dashboard_page():
             clean_phone = "91" + clean_phone
         
         pay_url = f"https://quickbill-saas.onrender.com/pay/{inv}"
-        msg = f"Namaste {name},\n{wholesaler_name} ki taraf se invoice #{inv} (Rs {amount:,.2f}) pending hai. Due date: {due}.\nDirect pay karein: {pay_url}"
+        msg = f"Namaste {name},\n{wholesaler_name} ki taraf se aapka invoice #{inv} ka Rs {amount:,.2f} pending hai. Due date: {due}.\nDirect pay karein: {pay_url}"
         encoded_msg = urllib.parse.quote(msg)
         wa_link = f"https://wa.me/{clean_phone}?text={encoded_msg}"
 
@@ -128,6 +132,7 @@ def dashboard_page():
                     <a href="{pay_url}" target="_blank" style="background:#6366f1; color:white; padding:6px 10px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:bold;">View Bill</a>
                 </div>
 
+                <!-- Custom Scanner QR Photo Upload -->
                 <form action="/upload-qr/{inv}" method="post" enctype="multipart/form-data" style="display:flex; gap:4px; align-items:center;">
                     <input type="file" name="qr_file" accept="image/*" required style="font-size:11px; width:140px;">
                     <button type="submit" style="background:#334155; color:white; border:none; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer;">Set Scanner</button>
@@ -153,5 +158,89 @@ def dashboard_page():
         </tr>
         """
 
-    empty_pending = '<tr><td colspan="5" style="text-align:center; padding:15px; color:#94a3b8;">Sabhi bills clear hain!</td></tr>'
-    empty_logs = '<tr><td colspan="5" style="text-align:center; padding:15px; color:#94a3b8;">Koi payment history nahi hai abhi
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>QuickBill - Cloud Dashboard</title>
+        <style>
+            body {{ font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f8fafc; padding: 20px; display: flex; justify-content: center; margin:0; }}
+            .container {{ max-width: 950px; width: 100%; }}
+            .stats {{ display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0; }}
+            .card {{ background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 20px; }}
+            .amount {{ font-size: 24px; font-weight: bold; color: #dc2626; }}
+            .count {{ font-size: 24px; font-weight: bold; color: #2563eb; }}
+            .btn {{ background: #2563eb; color: white; border: none; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }}
+            table {{ width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }}
+            th {{ background: #f1f5f9; padding: 10px; color: #475569; }}
+
+            /* Modal Style */
+            .modal {{ display:none; position:fixed; z-index:100; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; }}
+            .modal-content {{ background:white; padding:24px; border-radius:12px; width:90%; max-width:400px; box-shadow:0 10px 25px rgba(0,0,0,0.2); }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h2>QuickBill Cloud SaaS</h2>
+            <p style="color:#64748b; margin-top:2px;">Store: <b>{wholesaler_name}</b> | Default UPI: <b>{default_upi}</b></p>
+            
+            <div class="stats">
+                <div class="card">
+                    <div style="font-size:12px; color:#64748b; font-weight: bold;">TOTAL PENDING UDHAAR</div>
+                    <div class="amount">Rs {total_amount:,.2f}</div>
+                    <small>{total_bills} active invoices</small>
+                </div>
+                <div class="card">
+                    <div style="font-size:12px; color:#64748b; font-weight: bold;">AAJ RECOVERY DUE</div>
+                    <div class="count">{due_today_count}</div>
+                    <small>Due date cross ho chuki hai</small>
+                </div>
+            </div>
+
+            <!-- Upload Excel -->
+            <div class="card">
+                <h3>Excel Sheet Upload Karein</h3>
+                <form action="/upload" method="post" enctype="multipart/form-data">
+                    <input type="file" name="file" accept=".xlsx, .xls" required style="margin-bottom:15px; display:block; width: 100%;">
+                    <button type="submit" class="btn">Upload & Save Karein</button>
+                </form>
+            </div>
+
+            <!-- Active Invoices -->
+            <div class="card">
+                <h3>Pending Invoices</h3>
+                <div style="overflow-x:auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Customer</th>
+                                <th>Invoice</th>
+                                <th>Pending Due</th>
+                                <th>Due Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {pending_rows if pending_rows else '<tr><td colspan="5" style="text-align:center; padding:15px; color:#94a3b8;">Sabhi bills clear hain!</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Payment Logs -->
+            <div class="card">
+                <h3>Payment Collection & Cash Adjustments History</h3>
+                <div style="overflow-x:auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Customer</th>
+                                <th>Invoice</th>
+                                <th>Cash/Online Received</th>
+                                <th>Details</th>
+                                <th>Date & Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {logs_rows if logs_rows else '<tr><td colspan="5" style="text-align:center; padding:

@@ -297,7 +297,7 @@ def record_payment(invoice_no: str, paid_amount: float = Form(...), payment_mode
             cur.execute("UPDATE receivables SET pending_amount = ? WHERE invoice_no = ?", (rem, invoice_no))
         conn.commit()
     conn.close()
-    return RedirectResponse(url="/", status_code=303)@app.post("/upload", response_class=HTMLResponse)
+    return RedirectResponse(url="/", status_code=303) @app.post("/upload", response_class=HTMLResponse)
 async def upload_excel(file: UploadFile = File(...)):
     contents = await file.read()
     df = pd.read_excel(io.BytesIO(contents))

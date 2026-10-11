@@ -144,4 +144,3 @@ def show_payment_page(invoice_no: str):
     </body>
     </html>
     """
-'@ | Out-File -FilePath server.py -Encoding utf8

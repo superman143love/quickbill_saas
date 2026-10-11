@@ -1,5 +1,5 @@
 from fastapi import FastAPI, UploadFile, File
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 import sqlite3
 import pandas as pd
 import io
@@ -61,8 +61,11 @@ def dashboard_page():
             <td style="padding:10px; border-bottom:1px solid #e2e8f0;">{inv}</td>
             <td style="padding:10px; border-bottom:1px solid #e2e8f0; color:#dc2626; font-weight:bold;">Rs {amount:,.2f}</td>
             <td style="padding:10px; border-bottom:1px solid #e2e8f0;">{due}</td>
-            <td style="padding:10px; border-bottom:1px solid #e2e8f0;">
-                <a href="{wa_link}" target="_blank" style="background:#25D366; color:white; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:bold; display:inline-block;">Send WhatsApp</a>
+            <td style="padding:10px; border-bottom:1px solid #e2e8f0; display:flex; gap:8px;">
+                <a href="{wa_link}" target="_blank" style="background:#25D366; color:white; padding:6px 10px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:bold;">Send WhatsApp</a>
+                <form action="/mark-paid/{inv}" method="post" style="margin:0;">
+                    <button type="submit" onclick="return confirm('Invoice #{inv} ko PAID mark karein?');" style="background:#16a34a; color:white; border:none; padding:6px 10px; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer;">Mark Paid</button>
+                </form>
             </td>
         </tr>
         """
@@ -75,7 +78,7 @@ def dashboard_page():
         <title>QuickBill - Dashboard</title>
         <style>
             body {{ font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f8fafc; padding: 20px; display: flex; justify-content: center; }}
-            .container {{ max-width: 800px; width: 100%; }}
+            .container {{ max-width: 850px; width: 100%; }}
             .stats {{ display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0; }}
             .card {{ background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 20px; }}
             .amount {{ font-size: 24px; font-weight: bold; color: #dc2626; }}
@@ -111,7 +114,7 @@ def dashboard_page():
             </div>
 
             <div class="card">
-                <h3>Active Invoices & WhatsApp Reminder</h3>
+                <h3>Active Invoices & Actions</h3>
                 <div style="overflow-x:auto;">
                     <table>
                         <thead>
@@ -124,7 +127,7 @@ def dashboard_page():
                             </tr>
                         </thead>
                         <tbody>
-                            {table_rows if table_rows else '<tr><td colspan="5" style="text-align:center; padding:15px; color:#94a3b8;">Koi record nahi mila. Excel upload karein.</td></tr>'}
+                            {table_rows if table_rows else '<tr><td colspan="5" style="text-align:center; padding:15px; color:#94a3b8;">Sabhi invoices clear hain ya koi record nahi mila.</td></tr>'}
                         </tbody>
                     </table>
                 </div>
@@ -133,6 +136,15 @@ def dashboard_page():
     </body>
     </html>
     """
+
+@app.post("/mark-paid/{invoice_no}")
+def mark_as_paid(invoice_no: str):
+    conn = sqlite3.connect("udhaar_system.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE receivables SET status = 'PAID' WHERE invoice_no = ?", (invoice_no,))
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/", status_code=303)
 
 @app.post("/upload", response_class=HTMLResponse)
 async def upload_excel(file: UploadFile = File(...)):
@@ -159,12 +171,29 @@ async def upload_excel(file: UploadFile = File(...)):
 def show_payment_page(invoice_no: str):
     conn = sqlite3.connect("udhaar_system.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT customer_name, pending_amount, due_date FROM receivables WHERE invoice_no = ?", (invoice_no,))
+    cursor.execute("SELECT customer_name, pending_amount, due_date, status FROM receivables WHERE invoice_no = ?", (invoice_no,))
     record = cursor.fetchone()
     conn.close()
     if not record:
         return "<h3>Invoice nahi mila!</h3>"
-    customer_name, amount, due_date = record
+    
+    customer_name, amount, due_date, status = record
+    if status == 'PAID':
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Paid - {invoice_no}</title></head>
+        <body style="font-family:sans-serif; background:#f3f4f6; display:flex; justify-content:center; align-items:center; min-height:100vh; margin:0;">
+            <div style="background:white; padding:30px; border-radius:14px; text-align:center; max-width:350px; box-shadow:0 4px 15px rgba(0,0,0,0.08);">
+                <h2 style="color:#16a34a; margin-top:0;">Payment Received!</h2>
+                <p>Invoice <b>#{invoice_no}</b> pehle hi clear ho chuka hai.</p>
+                <div style="font-size:24px; font-weight:bold; color:#1e293b; margin:10px 0;">Rs {amount:,.2f}</div>
+                <small style="color:#64748b;">Apex Wholesale Distributors</small>
+            </div>
+        </body>
+        </html>
+        """
+
     upi_link = f"upi://pay?pa={WHOLESALER_UPI}&pn={WHOLESALER_NAME}&am={amount}&cu=INR&tn=Invoice_{invoice_no}"
     qr_link = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={upi_link}"
     return f"""

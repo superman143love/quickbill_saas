@@ -1,11 +1,10 @@
-﻿from fastapi import FastAPI, UploadFile, File
+@'
+from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import HTMLResponse
 import sqlite3
 import pandas as pd
 import io
 from datetime import date
-import pywhatkit as kit
-import time
 
 app = FastAPI()
 
@@ -42,61 +41,49 @@ def dashboard_page():
     due_today_count = cursor.fetchone()[0]
     conn.close()
 
-    html = f"""
+    return f"""
     <!DOCTYPE html>
     <html>
     <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>QuickBill - Dashboard</title>
         <style>
-            body {{ font-family: sans-serif; background: #f8fafc; padding: 25px; display: flex; justify-content: center; }}
+            body {{ font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f8fafc; padding: 20px; display: flex; justify-content: center; }}
             .container {{ max-width: 600px; width: 100%; }}
             .stats {{ display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0; }}
-            .card {{ background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); margin-bottom: 20px; }}
+            .card {{ background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 20px; }}
             .amount {{ font-size: 24px; font-weight: bold; color: #dc2626; }}
             .count {{ font-size: 24px; font-weight: bold; color: #2563eb; }}
             .btn {{ background: #2563eb; color: white; border: none; padding: 12px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; }}
-            .btn-green {{ background: #16a34a; margin-top: 10px; }}
-            .btn-green:hover {{ background: #15803d; }}
         </style>
     </head>
     <body>
         <div class="container">
-            <h2>QuickBill SaaS Dashboard</h2>
+            <h2>QuickBill Cloud SaaS</h2>
             <p style="color:#64748b;">Welcome, {WHOLESALER_NAME}</p>
             <div class="stats">
                 <div class="card">
-                    <div style="font-size:12px; color:#64748b;">TOTAL PENDING UDHAAR</div>
+                    <div style="font-size:12px; color:#64748b; font-weight: bold;">TOTAL PENDING UDHAAR</div>
                     <div class="amount">Rs {total_amount:,.2f}</div>
                     <small>{total_bills} active invoices</small>
                 </div>
                 <div class="card">
-                    <div style="font-size:12px; color:#64748b;">AAJ RECOVERY DUE</div>
+                    <div style="font-size:12px; color:#64748b; font-weight: bold;">AAJ RECOVERY DUE</div>
                     <div class="count">{due_today_count}</div>
                     <small>Due date cross ho chuki hai</small>
                 </div>
             </div>
-            
             <div class="card">
-                <h3>1. Excel Sheet Upload</h3>
+                <h3>Excel Sheet Upload Karein</h3>
                 <form action="/upload" method="post" enctype="multipart/form-data">
-                    <input type="file" name="file" accept=".xlsx, .xls" required style="margin-bottom:15px; display:block;">
+                    <input type="file" name="file" accept=".xlsx, .xls" required style="margin-bottom:15px; display:block; width: 100%;">
                     <button type="submit" class="btn">Upload & Save Karein</button>
-                </form>
-            </div>
-
-            <div class="card">
-                <h3>2. WhatsApp Dispatcher</h3>
-                <p style="color:#64748b; font-size:14px;">In {due_today_count} customers ko personalized payment link WhatsApp karein.</p>
-                <form action="/send-reminders" method="post">
-                    <button type="submit" class="btn btn-green">Send Due WhatsApp Reminders</button>
                 </form>
             </div>
         </div>
     </body>
     </html>
     """
-    return html
 
 @app.post("/upload", response_class=HTMLResponse)
 async def upload_excel(file: UploadFile = File(...)):
@@ -119,38 +106,6 @@ async def upload_excel(file: UploadFile = File(...)):
     conn.close()
     return "<script>alert('Excel successfully load ho gayi!'); window.location.href='/';</script>"
 
-@app.post("/send-reminders", response_class=HTMLResponse)
-def trigger_reminders():
-    today_str = str(date.today())
-    conn = sqlite3.connect("udhaar_system.db")
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT customer_name, phone, invoice_no, pending_amount 
-        FROM receivables 
-        WHERE status = 'PENDING' AND due_date <= ?
-    """, (today_str,))
-    records = cursor.fetchall()
-    conn.close()
-
-    count = 0
-    for name, phone, inv_no, amount in records:
-        pay_url = f"http://localhost:8000/pay/{inv_no}"
-        msg = f"Namaste {name},\nAapka Invoice #{inv_no} ka Rs {amount:,.2f} due hai.\nPayment link: {pay_url}"
-        
-        # Phone number formatting check (+91)
-        phone_clean = str(phone).replace(".0", "").strip()
-        if not phone_clean.startswith("+"):
-            phone_clean = "+91" + phone_clean
-            
-        try:
-            kit.sendwhatmsg_instantly(phone_clean, msg, wait_time=12, tab_close=True, close_time=2)
-            time.sleep(3)
-            count += 1
-        except Exception as e:
-            print(f"Error sending to {phone_clean}: {e}")
-
-    return f"<script>alert('{count} reminders process ho gaye!'); window.location.href='/';</script>"
-
 @app.get("/pay/{invoice_no}", response_class=HTMLResponse)
 def show_payment_page(invoice_no: str):
     conn = sqlite3.connect("udhaar_system.db")
@@ -170,7 +125,7 @@ def show_payment_page(invoice_no: str):
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Payment - {invoice_no}</title>
         <style>
-            body {{ font-family: sans-serif; background: #f3f4f6; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }}
+            body {{ font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f3f4f6; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 15px; }}
             .card {{ background: white; padding: 25px; border-radius: 14px; text-align: center; max-width: 360px; width: 100%; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }}
             .amount {{ font-size: 30px; font-weight: bold; color: #16a34a; margin: 15px 0; }}
             .pay-btn {{ display: block; background: #2563eb; color: white; text-decoration: none; padding: 12px; border-radius: 8px; font-weight: bold; }}
@@ -189,3 +144,4 @@ def show_payment_page(invoice_no: str):
     </body>
     </html>
     """
+'@ | Out-File -FilePath server.py -Encoding utf8

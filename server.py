@@ -122,7 +122,7 @@ def dashboard():
     sel_eve = "selected" if sett_mode == "EVENING" else ""
     p_body = p_rows if p_rows else '<tr><td colspan="5" style="padding:12px;text-align:center;color:#94a3b8;">Sabhi clear hain!</td></tr>'
     l_body = l_rows if l_rows else '<tr><td colspan="5" style="padding:12px;text-align:center;color:#94a3b8;">Koi history nahi hai abhi.</td></tr>'
-    total_amt_str = f"{float(total_amount):,.2f}"return f"""<!DOCTYPE html><html><head>
+    total_amt_str = f"{float(total_amount):,.2f}" return f"""<!DOCTYPE html><html><head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QuickBill SaaS</title>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>

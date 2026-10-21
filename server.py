@@ -23,35 +23,24 @@ def init_db():
         remaining_balance REAL, payment_mode TEXT, paid_at TEXT
     )""")
     cur.execute("""CREATE TABLE IF NOT EXISTS settings (
-        id INTEGER PRIMARY KEY,
-        wholesaler_name TEXT,
-        upi_id TEXT,
-        bank_name TEXT DEFAULT 'HDFC Bank',
-        account_number TEXT DEFAULT '5010045892145',
-        ifsc_code TEXT DEFAULT 'HDFC0000123',
-        settlement_mode TEXT DEFAULT 'INSTANT'
+        id INTEGER PRIMARY KEY, wholesaler_name TEXT, upi_id TEXT,
+        bank_name TEXT DEFAULT 'HDFC Bank', account_number TEXT DEFAULT '5010045892145',
+        ifsc_code TEXT DEFAULT 'HDFC0000123', settlement_mode TEXT DEFAULT 'INSTANT'
     )""")
     cur.execute("SELECT COUNT(*) FROM settings")
     if cur.fetchone()[0] == 0:
-        cur.execute("""INSERT INTO settings VALUES 
-            (1, 'Apex Wholesale Distributors', 'apexdistributors@upi', 'HDFC Bank', '5010045892145', 'HDFC0000123', 'INSTANT')""")
+        cur.execute("INSERT INTO settings VALUES (1, 'Apex Wholesale Distributors', 'apexdistributors@upi', 'HDFC Bank', '5010045892145', 'HDFC0000123', 'INSTANT')")
     
     cur.execute("PRAGMA table_info(settings)")
     cols = [r[1] for r in cur.fetchall()]
-    if "bank_name" not in cols:
-        cur.execute("ALTER TABLE settings ADD COLUMN bank_name TEXT DEFAULT 'HDFC Bank'")
-    if "account_number" not in cols:
-        cur.execute("ALTER TABLE settings ADD COLUMN account_number TEXT DEFAULT '5010045892145'")
-    if "ifsc_code" not in cols:
-        cur.execute("ALTER TABLE settings ADD COLUMN ifsc_code TEXT DEFAULT 'HDFC0000123'")
-    if "settlement_mode" not in cols:
-        cur.execute("ALTER TABLE settings ADD COLUMN settlement_mode TEXT DEFAULT 'INSTANT'")
+    if "bank_name" not in cols: cur.execute("ALTER TABLE settings ADD COLUMN bank_name TEXT DEFAULT 'HDFC Bank'")
+    if "account_number" not in cols: cur.execute("ALTER TABLE settings ADD COLUMN account_number TEXT DEFAULT '5010045892145'")
+    if "ifsc_code" not in cols: cur.execute("ALTER TABLE settings ADD COLUMN ifsc_code TEXT DEFAULT 'HDFC0000123'")
+    if "settlement_mode" not in cols: cur.execute("ALTER TABLE settings ADD COLUMN settlement_mode TEXT DEFAULT 'INSTANT'")
 
     cur.execute("PRAGMA table_info(receivables)")
     r_cols = [r[1] for r in cur.fetchall()]
-    if "custom_qr_path" not in r_cols:
-        cur.execute("ALTER TABLE receivables ADD COLUMN custom_qr_path TEXT DEFAULT ''")
-
+    if "custom_qr_path" not in r_cols: cur.execute("ALTER TABLE receivables ADD COLUMN custom_qr_path TEXT DEFAULT ''")
     conn.commit()
     conn.close()
 
@@ -63,9 +52,7 @@ def get_settings():
     cur.execute("SELECT wholesaler_name, upi_id, bank_name, account_number, ifsc_code, settlement_mode FROM settings WHERE id = 1")
     row = cur.fetchone()
     conn.close()
-    if row:
-        return row
-    return ("Apex Wholesale Distributors", "apexdistributors@upi", "HDFC Bank", "5010045892145", "HDFC0000123", "INSTANT")
+    return row if row else ("Apex Wholesale Distributors", "apexdistributors@upi", "HDFC Bank", "5010045892145", "HDFC0000123", "INSTANT")
 
 @app.get("/qr-img/{filename}")
 def get_qr_image(filename: str):
@@ -79,7 +66,8 @@ def dashboard():
     cur = conn.cursor()
     cur.execute("SELECT COUNT(*), COALESCE(SUM(pending_amount), 0) FROM receivables WHERE status = 'PENDING'")
     total_bills, total_amount = cur.fetchone()
-    cur.execute("SELECT COUNT(*) FROM receivables WHERE status = 'PENDING' AND due_date <= ?", (str(date.today()),))
+    today_val = str(date.today())
+    cur.execute("SELECT COUNT(*) FROM receivables WHERE status = 'PENDING' AND due_date <= ?", (today_val,))
     due_today = cur.fetchone()[0]
     cur.execute("SELECT customer_name, phone, invoice_no, pending_amount, due_date, custom_qr_path FROM receivables WHERE status = 'PENDING' ORDER BY due_date ASC")
     pending = cur.fetchall()
@@ -92,7 +80,7 @@ def dashboard():
         clean_p = str(phone).replace("+", "").strip()
         if not clean_p.startswith("91") and len(clean_p) == 10: clean_p = "91" + clean_p
         pay_url = f"https://quickbill-saas.onrender.com/pay/{inv}"
-        msg = f"Namaste {name},\n{w_name} invoice #{inv} (Rs {amt:,.2f}) pending. Due: {due}.\nOnline / Bank Pay: {pay_url}"
+        msg = f"Namaste {name},\n{w_name} invoice #{inv} (Rs {amt:,.2f}) pending. Due: {due}.\nPay: {pay_url}"
         wa = f"https://wa.me/{clean_p}?text={urllib.parse.quote(msg)}"
         qr_tag = '<span style="background:#dcfce7;color:#166534;padding:2px 6px;border-radius:4px;font-size:11px;">Custom QR</span>' if qr else '<span style="color:#64748b;font-size:11px;">Default Setup</span>'
         p_rows += f"""<tr>
@@ -126,38 +114,306 @@ def dashboard():
             <td style="padding:8px;border-bottom:1px solid #e2e8f0;font-size:12px;color:#64748b;">{p_time}</td>
         </tr>"""
 
-    today_val = str(date.today())
     sett_text = "Instant Bank Settlement" if sett_mode == "INSTANT" else "Daily Evening Payout (8:00 PM)"
+    sel_inst = "selected" if sett_mode == "INSTANT" else ""
+    sel_eve = "selected" if sett_mode == "EVENING" else ""
+    p_body = p_rows if p_rows else '<tr><td colspan="5" style="padding:12px;text-align:center;color:#94a3b8;">Sabhi clear hain!</td></tr>'
+    l_body = l_rows if l_rows else '<tr><td colspan="5" style="padding:12px;text-align:center;color:#94a3b8;">Koi history nahi hai abhi.</td></tr>'
 
-    html = """<!DOCTYPE html><html><head>
+    return f"""<!DOCTYPE html><html><head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QuickBill SaaS</title>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
-        body { font-family: sans-serif; background: #f8fafc; padding: 20px; margin: 0; display:flex; justify-content:center; }
-        .c { max-width: 950px; width: 100%; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 15px 0; }
-        .box { background: white; padding: 18px; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); margin-bottom: 18px; }
-        table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
-        th { background: #f1f5f9; padding: 8px; color: #475569; }
-        .modal { display:none; position:fixed; z-index:99; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; }
-        .m-box { background:white; padding:20px; border-radius:10px; width:90%; max-width:400px; }
-        .inp { width:100%; padding:8px; margin:4px 0 10px 0; border:1px solid #cbd5e1; border-radius:6px; box-sizing:border-box; }
+        body {{ font-family: sans-serif; background: #f8fafc; padding: 20px; margin: 0; display:flex; justify-content:center; }}
+        .c {{ max-width: 950px; width: 100%; }}
+        .grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 15px 0; }}
+        .box {{ background: white; padding: 18px; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); margin-bottom: 18px; }}
+        table {{ width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }}
+        th {{ background: #f1f5f9; padding: 8px; color: #475569; }}
+        .modal {{ display:none; position:fixed; z-index:99; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; }}
+        .m-box {{ background:white; padding:20px; border-radius:10px; width:90%; max-width:400px; }}
+        .inp {{ width:100%; padding:8px; margin:4px 0 10px 0; border:1px solid #cbd5e1; border-radius:6px; box-sizing:border-box; }}
     </style></head><body>
     <div class="c">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
             <div>
                 <h2 style="margin:0;">QuickBill Cloud SaaS</h2>
-                <p style="color:#64748b; margin:4px 0;">Store: <b>__W_NAME__</b> | Mode: <span style="background:#e0e7ff; color:#3730a3; padding:2px 8px; border-radius:12px; font-size:12px; font-weight:bold;">__SETT_TEXT__</span></p>
+                <p style="color:#64748b; margin:4px 0;">Store: <b>{w_name}</b> | Mode: <span style="background:#e0e7ff; color:#3730a3; padding:2px 8px; border-radius:12px; font-size:12px; font-weight:bold;">{sett_text}</span></p>
             </div>
-            <button onclick="document.getElementById('settModal').style.display='flex'" style="background:#334155; color:white; border:none; padding:8px 14px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:12px;">⚙️ Bank & Payout Settings</button>
+            <button onclick="document.getElementById('settModal').style.display='flex'" style="background:#334155; color:white; border:none; padding:8px 14px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:12px;">Settings</button>
         </div>
         
         <div class="grid">
-            <div class="box"><small style="color:#64748b;font-weight:bold;">TOTAL PENDING</small><div style="font-size:24px;font-weight:bold;color:#dc2626;">Rs __TOTAL_AMT__</div><small>__TOTAL_BILLS__ active</small></div>
-            <div class="box"><small style="color:#64748b;font-weight:bold;">AAJ DUE</small><div style="font-size:24px;font-weight:bold;color:#2563eb;">__DUE_TODAY__</div><small>Bills due</small></div>
+            <div class="box"><small style="color:#64748b;font-weight:bold;">TOTAL PENDING</small><div style="font-size:24px;font-weight:bold;color:#dc2626;">Rs {total_amount:,.2f}</div><small>{total_bills} active</small></div>
+            <div class="box"><small style="color:#64748b;font-weight:bold;">AAJ DUE</small><div style="font-size:24px;font-weight:bold;color:#2563eb;">{due_today}</div><small>Bills due</small></div>
         </div>
 
         <div class="box">
             <h3 style="margin-top:0;">Naya Bill Shamil Karein (3 Tareeqe)</h3>
-            <div style="display:grid; grid-template-columns: 1fr 1fr;
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
+                <div style="border:1px dashed #cbd5e1; padding:12px; border-radius:8px; background:#f8fafc;">
+                    <b>1. Haath Se Type Karein</b>
+                    <form action="/add-single" method="post" style="margin-top:8px;">
+                        <input type="text" name="customer_name" placeholder="Customer Name" required class="inp" style="margin-bottom:6px;">
+                        <input type="text" name="phone" placeholder="WhatsApp Number" required class="inp" style="margin-bottom:6px;">
+                        <div style="display:flex; gap:6px;">
+                            <input type="text" name="invoice_no" placeholder="Bill No" required class="inp">
+                            <input type="number" step="0.01" name="amount" placeholder="Amount (Rs)" required class="inp">
+                        </div>
+                        <input type="date" name="due_date" value="{today_val}" required class="inp">
+                        <button type="submit" style="background:#2563eb; color:white; border:none; padding:8px 12px; border-radius:6px; font-weight:bold; width:100%; cursor:pointer;">+ Bill Add Karein</button>
+                    </form>
+                </div>
+                <div>
+                    <div style="border:1px dashed #cbd5e1; padding:12px; border-radius:8px; background:#f8fafc; margin-bottom:10px;">
+                        <b>2. Kacchi Parchi / Photo Scan</b>
+                        <p style="font-size:11px; color:#64748b; margin:4px 0 8px 0;">Photo chunein, system auto-read karega:</p>
+                        <input type="file" id="parchiInput" accept="image/*" onchange="scanParchi(event)" style="font-size:12px;">
+                        <div id="ocrStatus" style="font-size:11px; color:#2563eb; margin-top:4px; font-weight:bold;"></div>
+                    </div>
+                    <div style="border:1px dashed #cbd5e1; padding:12px; border-radius:8px; background:#f8fafc;">
+                        <b>3. Bulk Excel Upload</b>
+                        <form action="/upload" method="post" enctype="multipart/form-data" style="margin-top:6px;">
+                            <input type="file" name="file" accept=".xlsx, .xls" required style="font-size:11px; margin-bottom:6px; display:block;">
+                            <button type="submit" style="background:#334155; color:white; border:none; padding:6px 12px; border-radius:5px; font-size:12px; cursor:pointer;">Excel Upload</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="box">
+            <h3>Pending Invoices</h3>
+            <div style="overflow-x:auto;">
+                <table><thead><tr><th>Customer</th><th>Invoice</th><th>Due Amount</th><th>Due Date</th><th>Actions</th></tr></thead>
+                <tbody>{p_body}</tbody></table>
+            </div>
+        </div>
+
+        <div class="box">
+            <h3>Payment Logs History</h3>
+            <div style="overflow-x:auto;">
+                <table><thead><tr><th>Customer</th><th>Invoice</th><th>Received</th><th>Status</th><th>Date</th></tr></thead>
+                <tbody>{l_body}</tbody></table>
+            </div>
+        </div>
+    </div>
+
+    <div id="settModal" class="modal"><div class="m-box">
+        <h3 style="margin-top:0; color:#334155;">Bank & Payout Settings</h3>
+        <form action="/update-settings" method="post">
+            <label style="font-size:12px; font-weight:bold;">Wholesaler / Firm Name:</label>
+            <input type="text" name="wholesaler_name" value="{w_name}" required class="inp">
+            <label style="font-size:12px; font-weight:bold;">Primary UPI ID:</label>
+            <input type="text" name="upi_id" value="{def_upi}" required class="inp">
+            <label style="font-size:12px; font-weight:bold;">Bank Name:</label>
+            <input type="text" name="bank_name" value="{b_name}" required class="inp">
+            <label style="font-size:12px; font-weight:bold;">Bank Account Number:</label>
+            <input type="text" name="account_number" value="{acc_no}" required class="inp">
+            <label style="font-size:12px; font-weight:bold;">IFSC Code:</label>
+            <input type="text" name="ifsc_code" value="{ifsc}" required class="inp">
+            <label style="font-size:12px; font-weight:bold;">Settlement Option:</label>
+            <select name="settlement_mode" class="inp">
+                <option value="INSTANT" {sel_inst}>Option A: Direct Bank Account (Instant)</option>
+                <option value="EVENING" {sel_eve}>Option B: Shaam Ko Auto-Settlement (8:00 PM)</option>
+            </select>
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:10px;">
+                <button type="button" onclick="document.getElementById('settModal').style.display='none'" style="background:#94a3b8; color:white; border:none; padding:7px 12px; border-radius:5px; cursor:pointer;">Cancel</button>
+                <button type="submit" style="background:#2563eb; color:white; border:none; padding:7px 14px; border-radius:5px; font-weight:bold; cursor:pointer;">Save Bank Settings</button>
+            </div>
+        </form>
+    </div></div>
+
+    <div id="parchiModal" class="modal"><div class="m-box">
+        <h3 style="margin-top:0; color:#2563eb;">Parchi Data Verify Karein</h3>
+        <form action="/add-single" method="post">
+            <label style="font-size:12px; font-weight:bold;">Customer Name:</label>
+            <input type="text" id="p_name" name="customer_name" required class="inp">
+            <label style="font-size:12px; font-weight:bold;">WhatsApp Mobile:</label>
+            <input type="text" id="p_phone" name="phone" required class="inp">
+            <div style="display:flex; gap:6px;">
+                <div style="flex:1;"><label style="font-size:12px; font-weight:bold;">Bill No:</label><input type="text" id="p_inv" name="invoice_no" required class="inp"></div>
+                <div style="flex:1;"><label style="font-size:12px; font-weight:bold;">Amount (Rs):</label><input type="number" step="0.01" id="p_amt" name="amount" required class="inp"></div>
+            </div>
+            <label style="font-size:12px; font-weight:bold;">Due Date:</label>
+            <input type="date" id="p_due" name="due_date" value="{today_val}" required class="inp">
+            <div style="background:#fef08a; padding:8px; border-radius:6px; font-size:12px; color:#854d0e; margin-bottom:12px;">⚠️ Check kar lein: Kya saara data barabar hai?</div>
+            <div style="display:flex; justify-content:flex-end; gap:8px;">
+                <button type="button" onclick="document.getElementById('parchiModal').style.display='none'" style="background:#94a3b8; color:white; border:none; padding:7px 12px; border-radius:5px; cursor:pointer;">Cancel</button>
+                <button type="submit" style="background:#16a34a; color:white; border:none; padding:7px 14px; border-radius:5px; font-weight:bold; cursor:pointer;">Haan, Save Karein</button>
+            </div>
+        </form>
+    </div></div>
+
+    <div id="m" class="modal"><div class="m-box">
+        <h3 style="margin-top:0;color:#059669;">Cash Entry</h3>
+        <p id="m-info" style="font-size:13px;"></p>
+        <div style="background:#fee2e2;color:#991b1b;padding:8px;border-radius:6px;font-weight:bold;margin-bottom:10px;">Due: Rs <span id="m-due">0</span></div>
+        <form id="m-form" method="post">
+            <label style="font-size:12px;font-weight:bold;">Cash Received:</label>
+            <input type="number" step="0.01" id="m-inp" name="paid_amount" required oninput="calc()" class="inp">
+            <div style="background:#f1f5f9;padding:8px;border-radius:6px;margin-bottom:12px;font-size:13px;">Bacha Balance: <b id="m-rem" style="color:#dc2626;">Rs 0</b></div>
+            <input type="hidden" name="payment_mode" value="Cash">
+            <div style="display:flex;justify-content:flex-end;gap:8px;">
+                <button type="button" onclick="document.getElementById('m').style.display='none'" style="background:#94a3b8;color:white;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;">Cancel</button>
+                <button type="submit" style="background:#059669;color:white;border:none;padding:6px 14px;border-radius:4px;font-weight:bold;cursor:pointer;">Save Cash</button>
+            </div>
+        </form>
+    </div></div>
+
+    <script>
+        var curDue = 0;
+        function openCash(inv, name, due) {{
+            curDue = due;
+            document.getElementById('m-info').innerText = name + ' (' + inv + ')';
+            document.getElementById('m-due').innerText = due.toLocaleString('en-IN');
+            document.getElementById('m-inp').value = due;
+            document.getElementById('m-form').action = '/record-payment/' + inv;
+            calc();
+            document.getElementById('m').style.display = 'flex';
+        }}
+        function calc() {{
+            var v = parseFloat(document.getElementById('m-inp').value) || 0;
+            var r = Math.max(0, curDue - v);
+            document.getElementById('m-rem').innerText = 'Rs ' + r.toLocaleString('en-IN');
+        }}
+
+        async function scanParchi(e) {{
+            var file = e.target.files[0];
+            if (!file) return;
+            var statusDiv = document.getElementById('ocrStatus');
+            statusDiv.innerText = "⏳ Parchi scan ho rahi hai...";
+
+            try {{
+                const result = await Tesseract.recognize(file, 'eng');
+                const text = result.data.text;
+                statusDiv.innerText = "";
+@app.post("/update-settings")
+def update_settings(
+    wholesaler_name: str = Form(...),
+    upi_id: str = Form(...),
+    bank_name: str = Form(...),
+    account_number: str = Form(...),
+    ifsc_code: str = Form(...),
+    settlement_mode: str = Form(...)
+):
+    conn = sqlite3.connect("udhaar_system.db")
+    cur = conn.cursor()
+    cur.execute("""UPDATE settings SET 
+        wholesaler_name = ?, upi_id = ?, bank_name = ?,
+        account_number = ?, ifsc_code = ?, settlement_mode = ?
+        WHERE id = 1
+    """, (wholesaler_name.strip(), upi_id.strip(), bank_name.strip(), account_number.strip(), ifsc_code.strip(), settlement_mode.strip()))
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/", status_code=303)
+
+@app.post("/add-single")
+def add_single_invoice(customer_name: str = Form(...), phone: str = Form(...), invoice_no: str = Form(...), amount: float = Form(...), due_date: str = Form(...)):
+    conn = sqlite3.connect("udhaar_system.db")
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM receivables WHERE invoice_no = ?", (invoice_no.strip(),))
+    if not cur.fetchone():
+        cur.execute("INSERT INTO receivables (customer_name, phone, invoice_no, pending_amount, due_date) VALUES (?, ?, ?, ?, ?)",
+            (customer_name.strip(), phone.strip(), invoice_no.strip(), float(amount), due_date.strip()))
+        conn.commit()
+    conn.close()
+    return RedirectResponse(url="/", status_code=303)
+
+@app.post("/upload-qr/{invoice_no}")
+async def upload_custom_qr(invoice_no: str, qr_file: UploadFile = File(...)):
+    ext = os.path.splitext(qr_file.filename)[1]
+    name = f"qr_{invoice_no}_{int(datetime.now().timestamp())}{ext}"
+    contents = await qr_file.read()
+    with open(os.path.join(UPLOAD_DIR, name), "wb") as f: f.write(contents)
+    conn = sqlite3.connect("udhaar_system.db")
+    cur = conn.cursor()
+    cur.execute("UPDATE receivables SET custom_qr_path = ? WHERE invoice_no = ?", (name, invoice_no))
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/", status_code=303)
+
+@app.post("/record-payment/{invoice_no}")
+def record_payment(invoice_no: str, paid_amount: float = Form(...), payment_mode: str = Form("Cash")):
+    conn = sqlite3.connect("udhaar_system.db")
+    cur = conn.cursor()
+    cur.execute("SELECT customer_name, pending_amount FROM receivables WHERE invoice_no = ?", (invoice_no,))
+    row = cur.fetchone()
+    if row:
+        c_name, due = row
+        paid = min(paid_amount, due)
+        rem = due - paid
+        now = datetime.now().strftime("%d %b %Y, %I:%M %p")
+        cur.execute("INSERT INTO payment_logs (invoice_no, customer_name, amount_paid, remaining_balance, payment_mode, paid_at) VALUES (?, ?, ?, ?, ?, ?)", (invoice_no, c_name, paid, rem, payment_mode, now))
+        if rem <= 0.01:
+            cur.execute("UPDATE receivables SET pending_amount = 0, status = 'PAID' WHERE invoice_no = ?", (invoice_no,))
+        else:
+            cur.execute("UPDATE receivables SET pending_amount = ? WHERE invoice_no = ?", (rem, invoice_no))
+        conn.commit()
+    conn.close()
+    return RedirectResponse(url="/", status_code=303)
+
+@app.post("/upload", response_class=HTMLResponse)
+async def upload_excel(file: UploadFile = File(...)):
+    contents = await file.read()
+    df = pd.read_excel(io.BytesIO(contents))
+    conn = sqlite3.connect("udhaar_system.db")
+    cur = conn.cursor()
+    for _, row in df.iterrows():
+        inv = str(row['Invoice_No']).strip()
+        cur.execute("SELECT id FROM receivables WHERE invoice_no = ?", (inv,))
+        if not cur.fetchone():
+            cur.execute("INSERT INTO receivables (customer_name, phone, invoice_no, pending_amount, due_date) VALUES (?, ?, ?, ?, ?)",
+                (str(row['Customer_Name']), str(row['Phone']), inv, float(row['Amount']), str(row['Due_Date'])))
+    conn.commit()
+    conn.close()
+    return "<script>alert('Excel load ho gayi!'); window.location.href='/';</script>"
+
+@app.get("/pay/{invoice_no}", response_class=HTMLResponse)
+def show_payment_page(invoice_no: str):
+    w_name, def_upi, b_name, acc_no, ifsc, sett_mode = get_settings()
+    conn = sqlite3.connect("udhaar_system.db")
+    cur = conn.cursor()
+    cur.execute("SELECT customer_name, pending_amount, due_date, status, custom_qr_path FROM receivables WHERE invoice_no = ?", (invoice_no,))
+    rec = cur.fetchone()
+    conn.close()
+    if not rec: return "<h3>Invoice nahi mila!</h3>"
+    name, amt, due, status, qr = rec
+
+    if status == 'PAID' or amt <= 0.01:
+        return f"""<!DOCTYPE html><html><body style="font-family:sans-serif;background:#f3f4f6;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;">
+        <div style="background:white;padding:30px;border-radius:12px;text-align:center;box-shadow:0 2px 10px rgba(0,0,0,0.1);">
+            <h2 style="color:#16a34a;">Payment Cleared!</h2>
+            <p>Invoice #{invoice_no} is cleared.</p>
+            <small style="color:#64748b;">{w_name}</small>
+        </div></body></html>"""
+
+    if qr and os.path.exists(os.path.join(UPLOAD_DIR, qr)):
+        body_content = f'<img src="/qr-img/{qr}" width="230" style="margin:10px auto;border-radius:8px;display:block;"><p style="font-size:12px;color:#475569;">Scan with PhonePe, GPay ya Paytm</p>'
+    else:
+        upi = f"upi://pay?pa={def_upi}&pn={urllib.parse.quote(w_name)}&am={amt}&cu=INR&tn=Invoice_{invoice_no}"
+        qr_api = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={urllib.parse.quote(upi)}"
+        body_content = f"""
+        <img src="{qr_api}" width="200" style="margin:10px auto;border-radius:8px;display:block;">
+        <a href="{upi}" style="display:block;background:#2563eb;color:white;text-decoration:none;padding:10px;border-radius:8px;font-weight:bold;margin:10px 0;">Pay via UPI App</a>
+        <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:10px; text-align:left; font-size:12px; margin-top:12px;">
+            <div style="font-weight:bold; color:#1e293b; margin-bottom:6px; font-size:13px;">Bank Transfer (NEFT/RTGS)</div>
+            <div>Bank: <b>{b_name}</b></div>
+            <div>A/C No: <b>{acc_no}</b></div>
+            <div>IFSC: <b>{ifsc}</b></div>
+            <div>Beneficiary: <b>{w_name}</b></div>
+        </div>
+        """
+
+    return f"""<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Pay - {invoice_no}</title></head>
+    <body style="font-family:sans-serif;background:#f3f4f6;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;padding:15px;">
+        <div style="background:white;padding:25px;border-radius:12px;text-align:center;max-width:360px;width:100%;box-shadow:0 2px 10px rgba(0,0,0,0.1);">
+            <h2 style="margin:0;">{w_name}</h2>
+            <p style="color:#64748b;margin:4px 0 12px 0;">Billed to: <b>{name}</b></p>
+            <div style="font-size:28px;font-weight:bold;color:#16a34a;margin-bottom:8px;">Rs {amt:,.2f}</div>
+            <p style="font-size:13px;color:#475569;margin-bottom:12px;">Invoice: {invoice_no} | Due: {due}</p>
+            {body_content}
+        </div>
+    </body></html>"""
+                var phoneMatch = text.match(/\\b[6-9]\\d{{9}}\\b/);

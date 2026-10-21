@@ -289,7 +289,8 @@ def dashboard():
                 const result = await Tesseract.recognize(file, 'eng');
                 const text = result.data.text;
                 statusDiv.innerText = "";
-@app.post("/update-settings")
+
+                var phoneMatch = text.match(/\\b[6-9]\\d{{9}}\\b/);@app.post("/update-settings")
 def update_settings(
     wholesaler_name: str = Form(...),
     upi_id: str = Form(...),
@@ -416,4 +417,3 @@ def show_payment_page(invoice_no: str):
             {body_content}
         </div>
     </body></html>"""
-                var phoneMatch = text.match(/\\b[6-9]\\d{{9}}\\b/);

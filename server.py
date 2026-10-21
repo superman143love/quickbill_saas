@@ -328,7 +328,8 @@ def dashboard():
                 document.getElementById('parchiModal').style.display = 'flex';
             }}
         }}
-    </script></body></html>"""@app.post("/update-settings")
+    </script></body></html>"""
+    @app.post("/update-settings")
 def update_settings(
     wholesaler_name: str = Form(...),
     upi_id: str = Form(...),

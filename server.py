@@ -36,7 +36,6 @@ def init_db():
         cur.execute("""INSERT INTO settings VALUES 
             (1, 'Apex Wholesale Distributors', 'apexdistributors@upi', 'HDFC Bank', '5010045892145', 'HDFC0000123', 'INSTANT')""")
     
-    # Auto-migration checks
     cur.execute("PRAGMA table_info(settings)")
     cols = [r[1] for r in cur.fetchall()]
     if "bank_name" not in cols:
@@ -130,177 +129,35 @@ def dashboard():
     today_val = str(date.today())
     sett_text = "Instant Bank Settlement" if sett_mode == "INSTANT" else "Daily Evening Payout (8:00 PM)"
 
-    return f"""<!DOCTYPE html><html><head>
+    html = """<!DOCTYPE html><html><head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QuickBill SaaS</title>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
-        body {{ font-family: sans-serif; background: #f8fafc; padding: 20px; margin: 0; display:flex; justify-content:center; }}
-        .c {{ max-width: 950px; width: 100%; }}
-        .grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 15px 0; }}
-        .box {{ background: white; padding: 18px; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); margin-bottom: 18px; }}
-        table {{ width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }}
-        th {{ background: #f1f5f9; padding: 8px; color: #475569; }}
-        .modal {{ display:none; position:fixed; z-index:99; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; }}
-        .m-box {{ background:white; padding:20px; border-radius:10px; width:90%; max-width:400px; }}
-        .inp {{ width:100%; padding:8px; margin:4px 0 10px 0; border:1px solid #cbd5e1; border-radius:6px; box-sizing:border-box; }}
+        body { font-family: sans-serif; background: #f8fafc; padding: 20px; margin: 0; display:flex; justify-content:center; }
+        .c { max-width: 950px; width: 100%; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 15px 0; }
+        .box { background: white; padding: 18px; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); margin-bottom: 18px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+        th { background: #f1f5f9; padding: 8px; color: #475569; }
+        .modal { display:none; position:fixed; z-index:99; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; }
+        .m-box { background:white; padding:20px; border-radius:10px; width:90%; max-width:400px; }
+        .inp { width:100%; padding:8px; margin:4px 0 10px 0; border:1px solid #cbd5e1; border-radius:6px; box-sizing:border-box; }
     </style></head><body>
     <div class="c">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
             <div>
                 <h2 style="margin:0;">QuickBill Cloud SaaS</h2>
-                <p style="color:#64748b; margin:4px 0;">Store: <b>{w_name}</b> | Mode: <span style="background:#e0e7ff; color:#3730a3; padding:2px 8px; border-radius:12px; font-size:12px; font-weight:bold;">{sett_text}</span></p>
+                <p style="color:#64748b; margin:4px 0;">Store: <b>__W_NAME__</b> | Mode: <span style="background:#e0e7ff; color:#3730a3; padding:2px 8px; border-radius:12px; font-size:12px; font-weight:bold;">__SETT_TEXT__</span></p>
             </div>
             <button onclick="document.getElementById('settModal').style.display='flex'" style="background:#334155; color:white; border:none; padding:8px 14px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:12px;">⚙️ Bank & Payout Settings</button>
         </div>
         
         <div class="grid">
-            <div class="box"><small style="color:#64748b;font-weight:bold;">TOTAL PENDING</small><div style="font-size:24px;font-weight:bold;color:#dc2626;">Rs {total_amount:,.2f}</div><small>{total_bills} active</small></div>
-            <div class="box"><small style="color:#64748b;font-weight:bold;">AAJ DUE</small><div style="font-size:24px;font-weight:bold;color:#2563eb;">{due_today}</div><small>Bills due</small></div>
+            <div class="box"><small style="color:#64748b;font-weight:bold;">TOTAL PENDING</small><div style="font-size:24px;font-weight:bold;color:#dc2626;">Rs __TOTAL_AMT__</div><small>__TOTAL_BILLS__ active</small></div>
+            <div class="box"><small style="color:#64748b;font-weight:bold;">AAJ DUE</small><div style="font-size:24px;font-weight:bold;color:#2563eb;">__DUE_TODAY__</div><small>Bills due</small></div>
         </div>
 
         <div class="box">
             <h3 style="margin-top:0;">Naya Bill Shamil Karein (3 Tareeqe)</h3>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
-                <div style="border:1px dashed #cbd5e1; padding:12px; border-radius:8px; background:#f8fafc;">
-                    <b>1. Haath Se Type Karein</b>
-                    <form action="/add-single" method="post" style="margin-top:8px;">
-                        <input type="text" name="customer_name" placeholder="Customer Name" required class="inp" style="margin-bottom:6px;">
-                        <input type="text" name="phone" placeholder="WhatsApp Number" required class="inp" style="margin-bottom:6px;">
-                        <div style="display:flex; gap:6px;">
-                            <input type="text" name="invoice_no" placeholder="Bill No" required class="inp">
-                            <input type="number" step="0.01" name="amount" placeholder="Amount (Rs)" required class="inp">
-                        </div>
-                        <input type="date" name="due_date" value="{today_val}" required class="inp">
-                        <button type="submit" style="background:#2563eb; color:white; border:none; padding:8px 12px; border-radius:6px; font-weight:bold; width:100%; cursor:pointer;">+ Bill Add Karein</button>
-                    </form>
-                </div>
-                <div>
-                    <div style="border:1px dashed #cbd5e1; padding:12px; border-radius:8px; background:#f8fafc; margin-bottom:10px;">
-                        <b>2. Kacchi Parchi / Photo Scan (Smart OCR)</b>
-                        <p style="font-size:11px; color:#64748b; margin:4px 0 8px 0;">Photo chunein, system auto-read karke confirmation mangega:</p>
-                        <input type="file" id="parchiInput" accept="image/*" onchange="scanParchi(event)" style="font-size:12px;">
-                        <div id="ocrStatus" style="font-size:11px; color:#2563eb; margin-top:4px; font-weight:bold;"></div>
-                    </div>
-                    <div style="border:1px dashed #cbd5e1; padding:12px; border-radius:8px; background:#f8fafc;">
-                        <b>3. Bulk Excel Upload</b>
-                        <form action="/upload" method="post" enctype="multipart/form-data" style="margin-top:6px;">
-                            <input type="file" name="file" accept=".xlsx, .xls" required style="font-size:11px; margin-bottom:6px; display:block;">
-                            <button type="submit" style="background:#334155; color:white; border:none; padding:6px 12px; border-radius:5px; font-size:12px; cursor:pointer;">Excel Upload</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="box">
-            <h3>Pending Invoices</h3>
-            <div style="overflow-x:auto;">
-                <table><thead><tr><th>Customer</th><th>Invoice</th><th>Due Amount</th><th>Due Date</th><th>Actions</th></tr></thead>
-                <tbody>{p_rows if p_rows else '<tr><td colspan="5" style="padding:12px;text-align:center;color:#94a3b8;">Sabhi clear hain!</td></tr>'}</tbody></table>
-            </div>
-        </div>
-
-        <div class="box">
-            <h3>Payment Logs History</h3>
-            <div style="overflow-x:auto;">
-                <table><thead><tr><th>Customer</th><th>Invoice</th><th>Received</th><th>Status</th><th>Date</th></tr></thead>
-                <tbody>{l_rows if l_rows else '<tr><td colspan="5" style="padding:12px;text-align:center;color:#94a3b8;">Koi history nahi hai abhi.</td></tr>'}</tbody></table>
-            </div>
-        </div>
-    </div>
-
-    <!-- Bank Settings Modal -->
-    <div id="settModal" class="modal"><div class="m-box">
-        <h3 style="margin-top:0; color:#334155;">Bank & Payout Settings</h3>
-        <p style="font-size:12px; color:#64748b; margin-top:-6px;">Bade payments aur daily settlement ke liye details update karein:</p>
-        <form action="/update-settings" method="post">
-            <label style="font-size:12px; font-weight:bold;">Wholesaler / Firm Name:</label>
-            <input type="text" name="wholesaler_name" value="{w_name}" required class="inp">
-
-            <label style="font-size:12px; font-weight:bold;">Primary UPI ID:</label>
-            <input type="text" name="upi_id" value="{def_upi}" required class="inp">
-
-            <label style="font-size:12px; font-weight:bold;">Bank Name:</label>
-            <input type="text" name="bank_name" value="{b_name}" required class="inp">
-
-            <label style="font-size:12px; font-weight:bold;">Bank Account Number:</label>
-            <input type="text" name="account_number" value="{acc_no}" required class="inp">
-
-            <label style="font-size:12px; font-weight:bold;">IFSC Code:</label>
-            <input type="text" name="ifsc_code" value="{ifsc}" required class="inp">
-
-            <label style="font-size:12px; font-weight:bold;">Settlement Option:</label>
-            <select name="settlement_mode" class="inp">
-                <option value="INSTANT" {"selected" if sett_mode == "INSTANT" else ""}>Option A: Direct Bank Account (Instant)</option>
-                <option value="EVENING" {"selected" if sett_mode == "EVENING" else ""}>Option B: Shaam Ko Auto-Settlement (8:00 PM)</option>
-            </select>
-
-            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:10px;">
-                <button type="button" onclick="document.getElementById('settModal').style.display='none'" style="background:#94a3b8; color:white; border:none; padding:7px 12px; border-radius:5px; cursor:pointer;">Cancel</button>
-                <button type="submit" style="background:#2563eb; color:white; border:none; padding:7px 14px; border-radius:5px; font-weight:bold; cursor:pointer;">Save Bank Settings</button>
-            </div>
-        </form>
-    </div></div>
-
-    <!-- Parchi Verification Modal -->
-    <div id="parchiModal" class="modal"><div class="m-box">
-        <h3 style="margin-top:0; color:#2563eb;">Parchi Data Verify Karein</h3>
-        <p style="font-size:12px; color:#64748b; margin-top:-6px;">Photo se read kiya gaya data check karein, agar koi kami ho toh theek kar lein:</p>
-        <form action="/add-single" method="post">
-            <label style="font-size:12px; font-weight:bold;">Customer Name:</label>
-            <input type="text" id="p_name" name="customer_name" required class="inp">
-            <label style="font-size:12px; font-weight:bold;">WhatsApp Mobile:</label>
-            <input type="text" id="p_phone" name="phone" required class="inp">
-            <div style="display:flex; gap:6px;">
-                <div style="flex:1;">
-                    <label style="font-size:12px; font-weight:bold;">Bill No:</label>
-                    <input type="text" id="p_inv" name="invoice_no" required class="inp">
-                </div>
-                <div style="flex:1;">
-                    <label style="font-size:12px; font-weight:bold;">Amount (Rs):</label>
-                    <input type="number" step="0.01" id="p_amt" name="amount" required class="inp">
-                </div>
-            </div>
-            <label style="font-size:12px; font-weight:bold;">Due Date:</label>
-            <input type="date" id="p_due" name="due_date" value="{today_val}" required class="inp">
-            <div style="background:#fef08a; padding:8px; border-radius:6px; font-size:12px; color:#854d0e; margin-bottom:12px;">
-                ⚠️ <b>Ek baar check kar lein:</b> Kya ye saara data barabar hai?
-            </div>
-            <div style="display:flex; justify-content:flex-end; gap:8px;">
-                <button type="button" onclick="document.getElementById('parchiModal').style.display='none'" style="background:#94a3b8; color:white; border:none; padding:7px 12px; border-radius:5px; cursor:pointer;">Cancel</button>
-                <button type="submit" style="background:#16a34a; color:white; border:none; padding:7px 14px; border-radius:5px; font-weight:bold; cursor:pointer;">Haan, Save Karein</button>
-            </div>
-        </form>
-    </div></div>
-
-    <!-- Cash Modal -->
-    <div id="m" class="modal"><div class="m-box">
-        <h3 style="margin-top:0;color:#059669;">Cash Entry</h3>
-        <p id="m-info" style="font-size:13px;"></p>
-        <div style="background:#fee2e2;color:#991b1b;padding:8px;border-radius:6px;font-weight:bold;margin-bottom:10px;">Due: Rs <span id="m-due">0</span></div>
-        <form id="m-form" method="post">
-            <label style="font-size:12px;font-weight:bold;">Cash Received:</label>
-            <input type="number" step="0.01" id="m-inp" name="paid_amount" required oninput="calc()" class="inp">
-            <div style="background:#f1f5f9;padding:8px;border-radius:6px;margin-bottom:12px;font-size:13px;">Bacha Balance: <b id="m-rem" style="color:#dc2626;">Rs 0</b></div>
-            <input type="hidden" name="payment_mode" value="Cash">
-            <div style="display:flex;justify-content:flex-end;gap:8px;">
-                <button type="button" onclick="document.getElementById('m').style.display='none'" style="background:#94a3b8;color:white;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;">Cancel</button>
-                <button type="submit" style="background:#059669;color:white;border:none;padding:6px 14px;border-radius:4px;font-weight:bold;cursor:pointer;">Save Cash</button>
-            </div>
-        </form>
-    </div></div>
-
-    <script>
-        var curDue = 0;
-        function openCash(inv, name, due) {{
-            curDue = due;
-            document.getElementById('m-info').innerText = name + ' (' + inv + ')';
-            document.getElementById('m-due').innerText = due.toLocaleString('en-IN');
-            document.getElementById('m-inp').value = due;
-            document.getElementById('m-form').action = '/record-payment/' + inv;
-            calc();
-            document.getElementById('m').style.display = 'flex';
-        }}
-        function calc() {{
-            var v = parseFloat(document.getEl
+            <div style="display:grid; grid-template-columns: 1fr 1fr;

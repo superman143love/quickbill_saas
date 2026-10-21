@@ -114,7 +114,7 @@ def dashboard():
             <td style="padding:8px;border-bottom:1px solid #e2e8f0;font-size:12px;color:#64748b;">{p_time}</td>
         </tr>"""
 
-    sett_text = "Instant Bank Settlement" if sett_mode == "INSTANT" else "Daily Evening Payout (8:00 PM)"
+    sett_text = "Direct Bank (Instant)" if sett_mode == "INSTANT" else "Shaam Ka Payout (8:00 PM)"
     sel_inst = "selected" if sett_mode == "INSTANT" else ""
     sel_eve = "selected" if sett_mode == "EVENING" else ""
     p_body = p_rows if p_rows else '<tr><td colspan="5" style="padding:12px;text-align:center;color:#94a3b8;">Sabhi clear hain!</td></tr>'
@@ -136,12 +136,13 @@ def dashboard():
         .inp {{ width:100%; padding:8px; margin:4px 0 10px 0; border:1px solid #cbd5e1; border-radius:6px; box-sizing:border-box; }}
     </style></head><body>
     <div class="c">
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
+        <!-- Top Bar with Visible Settings Button -->
+        <div class="box" style="background:#0f172a; color:white; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
             <div>
-                <h2 style="margin:0;">QuickBill Cloud SaaS</h2>
-                <p style="color:#64748b; margin:4px 0;">Store: <b>{w_name}</b> | Mode: <span style="background:#e0e7ff; color:#3730a3; padding:2px 8px; border-radius:12px; font-size:12px; font-weight:bold;">{sett_text}</span></p>
+                <h2 style="margin:0; font-size:22px; color:#38bdf8;">QuickBill Cloud SaaS</h2>
+                <div style="font-size:12px; color:#94a3b8; margin-top:4px;">Store: <b>{w_name}</b> | Payout: <b>{sett_text}</b></div>
             </div>
-            <button onclick="document.getElementById('settModal').style.display='flex'" style="background:#334155; color:white; border:none; padding:8px 14px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:12px;">Settings</button>
+            <button onclick="document.getElementById('settModal').style.display='flex'" style="background:#2563eb; color:white; border:none; padding:10px 16px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:13px;">⚙️ Bank & Payout Settings</button>
         </div>
         
         <div class="grid">
@@ -288,9 +289,7 @@ def dashboard():
             try {{
                 const result = await Tesseract.recognize(file, 'eng');
                 const text = result.data.text;
-                statusDiv.innerText = "";
-
-                var phoneMatch = text.match(/\\b[6-9]\\d{{9}}\\b/);@app.post("/update-settings")
+                statusDiv.innerText = "";@app.post("/update-settings")
 def update_settings(
     wholesaler_name: str = Form(...),
     upi_id: str = Form(...),

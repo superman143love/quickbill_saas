@@ -80,13 +80,14 @@ def dashboard():
         clean_p = str(phone).replace("+", "").strip()
         if not clean_p.startswith("91") and len(clean_p) == 10: clean_p = "91" + clean_p
         pay_url = f"https://quickbill-saas.onrender.com/pay/{inv}"
-        msg = f"Namaste {name},\n{w_name} invoice #{inv} (Rs {amt:,.2f}) pending. Due: {due}.\nPay: {pay_url}"
+        amt_str = f"{float(amt):,.2f}"
+        msg = f"Namaste {name},\n{w_name} invoice #{inv} (Rs {amt_str}) pending. Due: {due}.\nPay: {pay_url}"
         wa = f"https://wa.me/{clean_p}?text={urllib.parse.quote(msg)}"
         qr_tag = '<span style="background:#dcfce7;color:#166534;padding:2px 6px;border-radius:4px;font-size:11px;">Custom QR</span>' if qr else '<span style="color:#64748b;font-size:11px;">Default Setup</span>'
         p_rows += f"""<tr>
             <td style="padding:10px;border-bottom:1px solid #e2e8f0;"><b>{name}</b><br><small style="color:#64748b;">{clean_p}</small></td>
             <td style="padding:10px;border-bottom:1px solid #e2e8f0;"><b>{inv}</b><br>{qr_tag}</td>
-            <td style="padding:10px;border-bottom:1px solid #e2e8f0;color:#dc2626;font-weight:bold;">Rs {amt:,.2f}</td>
+            <td style="padding:10px;border-bottom:1px solid #e2e8f0;color:#dc2626;font-weight:bold;">Rs {amt_str}</td>
             <td style="padding:10px;border-bottom:1px solid #e2e8f0;">{due}</td>
             <td style="padding:10px;border-bottom:1px solid #e2e8f0;">
                 <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
@@ -103,13 +104,15 @@ def dashboard():
 
     l_rows = ""
     for c_name, inv, p_amt, rem, mode, p_time in logs:
-        badge = f"Partial (Bacha: Rs {rem:,.2f})" if rem > 0 else "Full Cleared"
+        rem_str = f"{float(rem):,.2f}"
+        badge = f"Partial (Bacha: Rs {rem_str})" if rem > 0 else "Full Cleared"
         col = "#854d0e" if rem > 0 else "#166534"
         bg = "#fef08a" if rem > 0 else "#dcfce7"
+        paid_str = f"{float(p_amt):,.2f}"
         l_rows += f"""<tr>
             <td style="padding:8px;border-bottom:1px solid #e2e8f0;"><b>{c_name}</b></td>
             <td style="padding:8px;border-bottom:1px solid #e2e8f0;">{inv}</td>
-            <td style="padding:8px;border-bottom:1px solid #e2e8f0;font-weight:bold;color:#059669;">Rs {p_amt:,.2f}</td>
+            <td style="padding:8px;border-bottom:1px solid #e2e8f0;font-weight:bold;color:#059669;">Rs {paid_str}</td>
             <td style="padding:8px;border-bottom:1px solid #e2e8f0;"><span style="background:{bg};color:{col};padding:2px 8px;border-radius:10px;font-size:11px;font-weight:bold;">{badge} via {mode}</span></td>
             <td style="padding:8px;border-bottom:1px solid #e2e8f0;font-size:12px;color:#64748b;">{p_time}</td>
         </tr>"""
@@ -119,8 +122,7 @@ def dashboard():
     sel_eve = "selected" if sett_mode == "EVENING" else ""
     p_body = p_rows if p_rows else '<tr><td colspan="5" style="padding:12px;text-align:center;color:#94a3b8;">Sabhi clear hain!</td></tr>'
     l_body = l_rows if l_rows else '<tr><td colspan="5" style="padding:12px;text-align:center;color:#94a3b8;">Koi history nahi hai abhi.</td></tr>'
-
-    return f"""<!DOCTYPE html><html><head>
+    total_amt_str = f"{float(total_amount):,.2f}"return f"""<!DOCTYPE html><html><head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QuickBill SaaS</title>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -136,17 +138,16 @@ def dashboard():
         .inp {{ width:100%; padding:8px; margin:4px 0 10px 0; border:1px solid #cbd5e1; border-radius:6px; box-sizing:border-box; }}
     </style></head><body>
     <div class="c">
-        <!-- Top Bar with Visible Settings Button -->
         <div class="box" style="background:#0f172a; color:white; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
             <div>
                 <h2 style="margin:0; font-size:22px; color:#38bdf8;">QuickBill Cloud SaaS</h2>
                 <div style="font-size:12px; color:#94a3b8; margin-top:4px;">Store: <b>{w_name}</b> | Payout: <b>{sett_text}</b></div>
             </div>
-            <button onclick="document.getElementById('settModal').style.display='flex'" style="background:#2563eb; color:white; border:none; padding:10px 16px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:13px;">⚙️ Bank & Payout Settings</button>
+            <button onclick="document.getElementById('settModal').style.display='flex'" style="background:#2563eb; color:white; border:none; padding:10px 16px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:13px;">Settings</button>
         </div>
         
         <div class="grid">
-            <div class="box"><small style="color:#64748b;font-weight:bold;">TOTAL PENDING</small><div style="font-size:24px;font-weight:bold;color:#dc2626;">Rs {total_amount:,.2f}</div><small>{total_bills} active</small></div>
+            <div class="box"><small style="color:#64748b;font-weight:bold;">TOTAL PENDING</small><div style="font-size:24px;font-weight:bold;color:#dc2626;">Rs {total_amt_str}</div><small>{total_bills} active</small></div>
             <div class="box"><small style="color:#64748b;font-weight:bold;">AAJ DUE</small><div style="font-size:24px;font-weight:bold;color:#2563eb;">{due_today}</div><small>Bills due</small></div>
         </div>
 
@@ -239,7 +240,7 @@ def dashboard():
             </div>
             <label style="font-size:12px; font-weight:bold;">Due Date:</label>
             <input type="date" id="p_due" name="due_date" value="{today_val}" required class="inp">
-            <div style="background:#fef08a; padding:8px; border-radius:6px; font-size:12px; color:#854d0e; margin-bottom:12px;">⚠️ Check kar lein: Kya saara data barabar hai?</div>
+            <div style="background:#fef08a; padding:8px; border-radius:6px; font-size:12px; color:#854d0e; margin-bottom:12px;">Check kar lein: Kya saara data barabar hai?</div>
             <div style="display:flex; justify-content:flex-end; gap:8px;">
                 <button type="button" onclick="document.getElementById('parchiModal').style.display='none'" style="background:#94a3b8; color:white; border:none; padding:7px 12px; border-radius:5px; cursor:pointer;">Cancel</button>
                 <button type="submit" style="background:#16a34a; color:white; border:none; padding:7px 14px; border-radius:5px; font-weight:bold; cursor:pointer;">Haan, Save Karein</button>
@@ -284,12 +285,49 @@ def dashboard():
             var file = e.target.files[0];
             if (!file) return;
             var statusDiv = document.getElementById('ocrStatus');
-            statusDiv.innerText = "⏳ Parchi scan ho rahi hai...";
+            statusDiv.innerText = "Parchi scan ho rahi hai...";
 
             try {{
                 const result = await Tesseract.recognize(file, 'eng');
                 const text = result.data.text;
-                statusDiv.innerText = "";@app.post("/update-settings")
+                statusDiv.innerText = "";
+
+                var phoneMatch = text.match(/\\b[6-9]\\d{{9}}\\b/);
+                var phone = phoneMatch ? phoneMatch[0] : "";
+
+                var amount = "";
+                var allNumbers = text.match(/\\b\\d+\\b/g) || [];
+                for (var i = 0; i < allNumbers.length; i++) {{
+                    var num = allNumbers[i];
+                    if (num !== phone && num.length >= 2 && num.length <= 7) {{
+                        amount = num;
+                    }}
+                }}
+
+                var name = "";
+                var lines = text.split('\\n');
+                for (var j = 0; j < lines.length; j++) {{
+                    var l = lines[j].trim();
+                    if (/name/i.test(l)) {{
+                        name = l.replace(/name[.:\\s-]*/i, '').trim();
+                        break;
+                    }} else if (!name && /^[A-Za-z\\s]{{3,25}}$/.test(l) && !/amount/i.test(l)) {{
+                        name = l;
+                    }}
+                }}
+
+                var randomId = Math.floor(100 + Math.random() * 900);
+                document.getElementById('p_inv').value = 'PARCHI-' + randomId;
+                document.getElementById('p_name').value = name || 'Parvez';
+                document.getElementById('p_phone').value = phone;
+                document.getElementById('p_amt').value = amount || '50000';
+                document.getElementById('parchiModal').style.display = 'flex';
+            }} catch (err) {{
+                statusDiv.innerText = "Manual verify karein.";
+                document.getElementById('parchiModal').style.display = 'flex';
+            }}
+        }}
+    </script></body></html>"""@app.post("/update-settings")
 def update_settings(
     wholesaler_name: str = Form(...),
     upi_id: str = Form(...),
@@ -380,6 +418,7 @@ def show_payment_page(invoice_no: str):
     conn.close()
     if not rec: return "<h3>Invoice nahi mila!</h3>"
     name, amt, due, status, qr = rec
+    pay_amt_str = f"{float(amt):,.2f}"
 
     if status == 'PAID' or amt <= 0.01:
         return f"""<!DOCTYPE html><html><body style="font-family:sans-serif;background:#f3f4f6;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;">
@@ -411,7 +450,7 @@ def show_payment_page(invoice_no: str):
         <div style="background:white;padding:25px;border-radius:12px;text-align:center;max-width:360px;width:100%;box-shadow:0 2px 10px rgba(0,0,0,0.1);">
             <h2 style="margin:0;">{w_name}</h2>
             <p style="color:#64748b;margin:4px 0 12px 0;">Billed to: <b>{name}</b></p>
-            <div style="font-size:28px;font-weight:bold;color:#16a34a;margin-bottom:8px;">Rs {amt:,.2f}</div>
+            <div style="font-size:28px;font-weight:bold;color:#16a34a;margin-bottom:8px;">Rs {pay_amt_str}</div>
             <p style="font-size:13px;color:#475569;margin-bottom:12px;">Invoice: {invoice_no} | Due: {due}</p>
             {body_content}
         </div>

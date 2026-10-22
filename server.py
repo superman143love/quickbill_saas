@@ -186,4 +186,4 @@ def update_settings(
     """, (wholesaler_name.strip(), gstin.strip(), store_address.strip(), upi_id.strip(), bank_name.strip(), account_number.strip(), ifsc_code.strip(), settlement_mode.strip()))
     conn.commit()
     conn.close()
-    return RedirectResponse(url="/", status_code_=303
+    return RedirectResponse(url="/", status_code_=303)

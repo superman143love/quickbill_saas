@@ -207,3 +207,111 @@ def add_single_invoice(customer_name: str = Form(...), phone: str = Form(...), i
         conn.commit()
     conn.close()
     return RedirectResponse(url="/", status_code=303)
+@app.post("/upload-qr/{invoice_no}")
+async def upload_custom_qr(invoice_no: str, qr_file: UploadFile = File(...)):
+    ext = os.path.splitext(qr_file.filename)[1]
+    name = f"qr_{invoice_no}_{int(datetime.now().timestamp())}{ext}"
+    contents = await qr_file.read()
+    with open(os.path.join(UPLOAD_DIR, name), "wb") as f: f.write(contents)
+    conn = sqlite3.connect("udhaar_system.db")
+    cur = conn.cursor()
+    cur.execute("UPDATE receivables SET custom_qr_path = ? WHERE invoice_no = ?", (name, invoice_no))
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/", status_code=303)
+
+@app.post("/record-payment/{invoice_no}")
+def record_payment(invoice_no: str, paid_amount: float = Form(...), payment_mode: str = Form("Cash")):
+    conn = sqlite3.connect("udhaar_system.db")
+    cur = conn.cursor()
+    cur.execute("SELECT customer_name, pending_amount FROM receivables WHERE invoice_no = ?", (invoice_no,))
+    row = cur.fetchone()
+    if row:
+        c_name, due = row
+        paid = min(paid_amount, due)
+        rem = due - paid
+        now = datetime.now().strftime("%d %b %Y, %I:%M %p")
+        cur.execute("INSERT INTO payment_logs (invoice_no, customer_name, amount_paid, remaining_balance, payment_mode, paid_at) VALUES (?, ?, ?, ?, ?, ?)", (invoice_no, c_name, paid, rem, payment_mode, now))
+        if rem <= 0.01:
+            cur.execute("UPDATE receivables SET pending_amount = 0, status = 'PAID' WHERE invoice_no = ?", (invoice_no,))
+        else:
+            cur.execute("UPDATE receivables SET pending_amount = ? WHERE invoice_no = ?", (rem, invoice_no))
+        conn.commit()
+    conn.close()
+    return RedirectResponse(url="/", status_code=303)
+
+@app.post("/upload", response_class=HTMLResponse)
+async def upload_excel(file: UploadFile = File(...)):
+    contents = await file.read()
+    df = pd.read_excel(io.BytesIO(contents))
+    conn = sqlite3.connect("udhaar_system.db")
+    cur = conn.cursor()
+    for _, row in df.iterrows():
+        inv = str(row['Invoice_No']).strip()
+        cur.execute("SELECT id FROM receivables WHERE invoice_no = ?", (inv,))
+        if not cur.fetchone():
+            cur.execute("INSERT INTO receivables (customer_name, phone, invoice_no, pending_amount, due_date) VALUES (?, ?, ?, ?, ?)",
+                (str(row['Customer_Name']), str(row['Phone']), inv, float(row['Amount']), str(row['Due_Date'])))
+    conn.commit()
+    conn.close()
+    return "<script>alert('Excel load ho gayi!'); window.location.href='/';</script>"
+
+@app.get("/pay/{invoice_no}", response_class=HTMLResponse)
+def show_payment_page(invoice_no: str):
+    w_name, def_upi, b_name, acc_no, ifsc, sett_mode, gstin_no, address = get_settings()
+    conn = sqlite3.connect("udhaar_system.db")
+    cur = conn.cursor()
+    cur.execute("SELECT customer_name, pending_amount, due_date, status, custom_qr_path FROM receivables WHERE invoice_no = ?", (invoice_no,))
+    rec = cur.fetchone()
+    conn.close()
+    if not rec:
+        return "<h3>Invoice nahi mila!</h3>"
+    name, amt, due, status, qr = rec
+    pay_amt_str = f"{float(amt):,.2f}"
+
+    if status == 'PAID' or amt <= 0.01:
+        receipt_title = "Tax Invoice Receipt" if gstin_no else "Payment Chukta Parchi"
+        gst_row = f'<div>GSTIN: <b>{gstin_no}</b></div>' if gstin_no else ''
+        addr_row = f'<div>Address: <small>{address}</small></div>' if address else ''
+
+        p_done = '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Receipt - ' + str(invoice_no) + '</title>'
+        p_done += '<style>body{font-family:sans-serif;background:#f3f4f6;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;padding:15px;}.rcp{background:white;padding:25px;border-radius:12px;text-align:center;max-width:380px;width:100%;box-shadow:0 2px 10px rgba(0,0,0,0.1);}@media print{body{background:white;padding:0;}.rcp{box-shadow:none;border:1px solid #000;max-width:100%;}.no-print{display:none;}}</style></head><body>'
+        p_done += '<div class="rcp">'
+        p_done += '<div style="background:#dcfce7;color:#16a34a;width:55px;height:55px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 12px;">✓</div>'
+        p_done += '<h2 style="color:#16a34a;margin:0;">Payment Cleared!</h2>'
+        p_done += f'<p style="color:#64748b;font-size:12px;margin:4px 0 14px 0;">{receipt_title}</p>'
+        p_done += '<div style="border-top:1px dashed #cbd5e1;border-bottom:1px dashed #cbd5e1;padding:12px 0;text-align:left;font-size:13px;line-height:1.6;margin-bottom:15px;">'
+        p_done += f'<div>Dukaan: <b>{w_name}</b></div>'
+        p_done += gst_row
+        p_done += addr_row
+        p_done += '<hr style="border:none;border-top:1px solid #f1f5f9;margin:8px 0;">'
+        p_done += f'<div>Bill No: <b>#{invoice_no}</b></div>'
+        p_done += f'<div>Customer: <b>{name}</b></div>'
+        p_done += f'<div style="font-size:16px;font-weight:bold;color:#0f172a;margin-top:6px;">Total Cleared: Rs {pay_amt_str}</div>'
+        p_done += '</div>'
+        p_done += '<button onclick="window.print()" class="no-print" style="background:#2563eb;color:white;border:none;padding:10px 16px;border-radius:6px;font-weight:bold;cursor:pointer;width:100%;font-size:13px;">📄 Download / Print Parchi</button>'
+        p_done += '</div></body></html>'
+        return p_done
+
+    gst_in_bank = f'<div>GSTIN: <b>{gstin_no}</b></div>' if gstin_no else ''
+
+    if qr and os.path.exists(os.path.join(UPLOAD_DIR, qr)):
+        body_content = '<img src="/qr-img/' + str(qr) + '" width="230" style="margin:10px auto;border-radius:8px;display:block;"><p style="font-size:12px;color:#475569;">Scan with PhonePe, GPay ya Paytm</p>'
+    else:
+        upi = "upi://pay?pa=" + str(def_upi) + "&pn=" + urllib.parse.quote(str(w_name)) + "&am=" + str(amt) + "&cu=INR&tn=Invoice_" + str(invoice_no)
+        qr_api = "https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" + urllib.parse.quote(upi)
+        body_content = '<img src="' + str(qr_api) + '" width="200" style="margin:10px auto;border-radius:8px;display:block;">'
+        body_content += '<a href="' + str(upi) + '" style="display:block;background:#2563eb;color:white;text-decoration:none;padding:10px;border-radius:8px;font-weight:bold;margin:10px 0;">Pay via UPI App</a>'
+        body_content += '<div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:10px; text-align:left; font-size:12px; margin-top:12px;">'
+        body_content += '<div style="font-weight:bold; color:#1e293b; margin-bottom:6px; font-size:13px;">Direct Bank Transfer (NEFT/RTGS)</div>'
+        body_content += f'<div>Bank: <b>{b_name}</b></div><div>A/C No: <b>{acc_no}</b></div><div>IFSC: <b>{ifsc}</b></div><div>Beneficiary: <b>{w_name}</b></div>{gst_in_bank}</div>'
+
+    res_html = '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Pay - ' + str(invoice_no) + '</title></head>'
+    res_html += '<body style="font-family:sans-serif;background:#f3f4f6;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;padding:15px;">'
+    res_html += '<div style="background:white;padding:25px;border-radius:12px;text-align:center;max-width:360px;width:100%;box-shadow:0 2px 10px rgba(0,0,0,0.1);">'
+    res_html += f'<h2 style="margin:0;">{w_name}</h2><p style="color:#64748b;margin:4px 0 12px 0;">Billed to: <b>{name}</b></p>'
+    res_html += f'<div style="font-size:28px;font-weight:bold;color:#16a34a;margin-bottom:8px;">Rs {pay_amt_str}</div>'
+    res_html += f'<p style="font-size:13px;color:#475569;margin-bottom:12px;">Bill No: {invoice_no} | Due: {due}</p>'
+    res_html += body_content
+    res_html += '</div></body></html>'
+    return res_html

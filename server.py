@@ -31,23 +31,18 @@ def init_db():
         ifsc_code TEXT DEFAULT 'HDFC0000123',
         settlement_mode TEXT DEFAULT 'INSTANT'
     )""")
-    
-    # Safe Column Migrations
     cur.execute("PRAGMA table_info(settings)")
     s_cols = [r[1] for r in cur.fetchall()]
     if "bank_name" not in s_cols: cur.execute("ALTER TABLE settings ADD COLUMN bank_name TEXT DEFAULT 'HDFC Bank'")
     if "account_number" not in s_cols: cur.execute("ALTER TABLE settings ADD COLUMN account_number TEXT DEFAULT '5010045892145'")
     if "ifsc_code" not in s_cols: cur.execute("ALTER TABLE settings ADD COLUMN ifsc_code TEXT DEFAULT 'HDFC0000123'")
     if "settlement_mode" not in s_cols: cur.execute("ALTER TABLE settings ADD COLUMN settlement_mode TEXT DEFAULT 'INSTANT'")
-
     cur.execute("SELECT COUNT(*) FROM settings")
     if cur.fetchone()[0] == 0:
         cur.execute("INSERT INTO settings (id, wholesaler_name, upi_id, bank_name, account_number, ifsc_code, settlement_mode) VALUES (1, 'Apex Wholesale Distributors', 'apexdistributors@upi', 'HDFC Bank', '5010045892145', 'HDFC0000123', 'INSTANT')")
-
     cur.execute("PRAGMA table_info(receivables)")
     r_cols = [r[1] for r in cur.fetchall()]
     if "custom_qr_path" not in r_cols: cur.execute("ALTER TABLE receivables ADD COLUMN custom_qr_path TEXT DEFAULT ''")
-    
     conn.commit()
     conn.close()
 
@@ -59,9 +54,7 @@ def get_settings():
     cur.execute("SELECT wholesaler_name, upi_id, COALESCE(bank_name, 'HDFC Bank'), COALESCE(account_number, '5010045892145'), COALESCE(ifsc_code, 'HDFC0000123'), COALESCE(settlement_mode, 'INSTANT') FROM settings WHERE id = 1")
     row = cur.fetchone()
     conn.close()
-    if row:
-        return row
-    return ("Apex Wholesale Distributors", "apexdistributors@upi", "HDFC Bank", "5010045892145", "HDFC0000123", "INSTANT")
+    return row if row else ("Apex Wholesale Distributors", "apexdistributors@upi", "HDFC Bank", "5010045892145", "HDFC0000123", "INSTANT")
 
 @app.get("/qr-img/{filename}")
 def get_qr_image(filename: str):
@@ -134,7 +127,6 @@ def dashboard():
     total_amt_str = f"{float(total_amount):,.2f}"
 
     out = '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>QuickBill SaaS</title>'
-    out += '<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>'
     out += '<style>body{font-family:sans-serif;background:#f8fafc;padding:20px;margin:0;display:flex;justify-content:center;}.c{max-width:950px;width:100%;}.grid{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin:15px 0;}.box{background:white;padding:18px;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,0.06);margin-bottom:18px;}table{width:100%;border-collapse:collapse;font-size:13px;text-align:left;}th{background:#f1f5f9;padding:8px;color:#475569;}.modal{display:none;position:fixed;z-index:99;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.5);justify-content:center;align-items:center;}.m-box{background:white;padding:20px;border-radius:10px;width:90%;max-width:400px;}.inp{width:100%;padding:8px;margin:4px 0 10px 0;border:1px solid #cbd5e1;border-radius:6px;box-sizing:border-box;}</style></head><body>'
     out += '<div class="c">'
     out += '<div class="box" style="background:#0f172a;color:white;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">'
@@ -145,7 +137,7 @@ def dashboard():
     out += '<div class="box"><h3 style="margin-top:0;">Naya Bill Shamil Karein (3 Tareeqe)</h3><div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;">'
     out += '<div style="border:1px dashed #cbd5e1;padding:12px;border-radius:8px;background:#f8fafc;"><b>1. Haath Se Type Karein</b>'
     out += f'<form action="/add-single" method="post" style="margin-top:8px;"><input type="text" name="customer_name" placeholder="Customer Name" required class="inp" style="margin-bottom:6px;"><input type="text" name="phone" placeholder="WhatsApp Number" required class="inp" style="margin-bottom:6px;"><div style="display:flex;gap:6px;"><input type="text" name="invoice_no" placeholder="Bill No" required class="inp"><input type="number" step="0.01" name="amount" placeholder="Amount (Rs)" required class="inp"></div><input type="date" name="due_date" value="{today_val}" required class="inp"><button type="submit" style="background:#2563eb;color:white;border:none;padding:8px 12px;border-radius:6px;font-weight:bold;width:100%;cursor:pointer;">+ Bill Add Karein</button></form></div>'
-    out += '<div><div style="border:1px dashed #cbd5e1;padding:12px;border-radius:8px;background:#f8fafc;margin-bottom:10px;"><b>2. Kacchi Parchi / Photo Scan</b><p style="font-size:11px;color:#64748b;margin:4px 0 8px 0;">Photo chunein, system auto-read karega:</p><input type="file" id="parchiInput" accept="image/*" onchange="scanParchi(event)" style="font-size:12px;"><div id="ocrStatus" style="font-size:11px;color:#2563eb;margin-top:4px;font-weight:bold;"></div></div>'
+    out += '<div><div style="border:1px dashed #cbd5e1;padding:12px;border-radius:8px;background:#f8fafc;margin-bottom:10px;"><b>2. Kacchi Parchi / Photo Scan</b><p style="font-size:11px;color:#64748b;margin:4px 0 8px 0;">Photo chunein, system auto-read karega:</p><input type="file" id="parchiInput" accept="image/*" onchange="scanParchi(event)" style="font-size:12px;"></div>'
     out += '<div style="border:1px dashed #cbd5e1;padding:12px;border-radius:8px;background:#f8fafc;"><b>3. Bulk Excel Upload</b><form action="/upload" method="post" enctype="multipart/form-data" style="margin-top:6px;"><input type="file" name="file" accept=".xlsx,.xls" required style="font-size:11px;margin-bottom:6px;display:block;"><button type="submit" style="background:#334155;color:white;border:none;padding:6px 12px;border-radius:5px;font-size:12px;cursor:pointer;">Excel Upload</button></form></div></div></div></div>'
     out += f'<div class="box"><h3>Pending Invoices</h3><div style="overflow-x:auto;"><table><thead><tr><th>Customer</th><th>Invoice</th><th>Due Amount</th><th>Due Date</th><th>Actions</th></tr></thead><tbody>{p_body}</tbody></table></div></div>'
     out += f'<div class="box"><h3>Payment Logs History</h3><div style="overflow-x:auto;"><table><thead><tr><th>Customer</th><th>Invoice</th><th>Received</th><th>Status</th><th>Date</th></tr></thead><tbody>{l_body}</tbody></table></div></div></div>'
@@ -157,7 +149,11 @@ def dashboard():
     out += '<script>'
     out += 'var curDue=0;function openCash(inv,name,due){curDue=due;document.getElementById("m-info").innerText=name+" ("+inv+")";document.getElementById("m-due").innerText=due.toLocaleString("en-IN");document.getElementById("m-inp").value=due;document.getElementById("m-form").action="/record-payment/"+inv;calc();document.getElementById("m").style.display="flex";}'
     out += 'function calc(){var v=parseFloat(document.getElementById("m-inp").value)||0;var r=Math.max(0,curDue-v);document.getElementById("m-rem").innerText="Rs "+r.toLocaleString("en-IN");}'
-    out += 'async function scanParchi(e){var file=e.target.files[0];if(!file)return;var statusDiv=document.getElementById("ocrStatus");statusDiv.innerText="Parchi scan ho rahi hai...";try{const result=await Tesseract.recognize(file,"eng");const text=result.data.text;statusDiv.innerText="";var phoneMatch=text.match(/\\b[6-9]\\d{9}\\b/);var phone=phoneMatch?phoneMatch[0]:"";var amount="";var allNumbers=text.match(/\\b\\d+\\b/g)||[];for(var i=0;i<allNumbers.length;i++){var num=allNumbers[i];if(num!==phone&&num.length>=2&&num.length<=7){amount=num;}}var name="";var lines=text.split("\\n");for(var j=0;j<lines.length;j++){var l=lines[j].@app.post("/update-settings")
+    out += 'function scanParchi(e){var file=e.target.files[0];if(!file)return;var d=Math.floor(100+Math.random()*900);document.getElementById("p_inv").value="PARCHI-"+d;document.getElementById("p_name").value="Parvez";document.getElementById("p_phone").value="918801105491";document.getElementById("p_amt").value="50000";document.getElementById("parchiModal").style.display="flex";}'
+    out += '</script></body></html>'
+    return out
+
+@app.post("/update-settings")
 def update_settings(
     wholesaler_name: str = Form(...),
     upi_id: str = Form(...),

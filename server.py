@@ -248,7 +248,8 @@ async def upload_excel(file: UploadFile = File(...)):
     conn.commit()
     conn.close()
     return "<script>alert('Excel load ho gayi!'); window.location.href='/';</script>"
-@app.get("/pay/{invoice_no}", response_class=HTMLResponse)
+@app.get("/pay/{invoice_no}", 
+response_class=HTMLResponse)
 def show_payment_page(invoice_no: str):
     w_name, def_upi, b_name, acc_no, ifsc, sett_mode, gstin_no, address = get_settings()
     conn = sqlite3.connect("udhaar_system.db")

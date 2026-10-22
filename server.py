@@ -256,6 +256,113 @@ def show_payment_page(invoice_no: str):
     cur = conn.cursor()
     cur.execute("SELECT customer_name, pending_amount, due_date, status, custom_qr_path FROM receivables WHERE invoice_no = ?", (invoice_no,))
     rec = cur.fetchone()
+    
+    # Last payment details nikalne ke liye
+    cur.execute("SELECT amount_paid, payment_mode, paid_at FROM payment_logs WHERE invoice_no = ? ORDER BY id DESC LIMIT 1", (invoice_no,))
+    last_log = cur.fetchone()
+    conn.close()
+
+    if not rec:
+        return "<h3>Invoice nahi mila!</h3>"
+        
+    name, amt, due, status, qr = rec
+    pay_amt_str = f"{float(amt):,.2f}"
+
+    if status == 'PAID' or amt <= 0.01:
+        cleared_amt = f"{float(last_log[0]):,.2f}" if last_log else "0.00"
+        pay_mode = last_log[1] if last_log else "Cash"
+        pay_time = last_log[2] if last_log else datetime.now().strftime("%d %b %Y, %I:%M %p")
+        receipt_title = "TAX INVOICE RECEIPT" if gstin_no else "PAYMENT CHUKTA PARCHI"
+        gst_row = f'<div style="font-size:12px;color:#475569;">GSTIN: <b>{gstin_no}</b></div>' if gstin_no else ''
+        addr_row = f'<div style="font-size:12px;color:#64748b;margin-top:2px;">{address}</div>' if address else ''
+
+        p_done = f'''<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parchi - #{invoice_no}</title>
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f1f5f9; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 90vh; }}
+        .bill-card {{ background: white; width: 100%; max-width: 400px; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border: 1px solid #e2e8f0; }}
+        .badge {{ background: #dcfce7; color: #15803d; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; display: inline-block; }}
+        .divider {{ border-top: 1px dashed #cbd5e1; margin: 15px 0; }}
+        .row {{ display: flex; justify-content: space-between; margin: 6px 0; font-size: 13px; color: #334155; }}
+        .print-btn {{ background: #2563eb; color: white; border: none; padding: 12px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; margin-top: 18px; }}
+        @media print {{
+            body {{ background: white; padding: 0; }}
+            .bill-card {{ box-shadow: none; border: 1px solid #000; width: 100%; max-width: 100%; }}
+            .no-print {{ display: none; }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="bill-card">
+        <div style="text-align: center; margin-bottom: 12px;">
+            <div style="font-size: 20px; font-weight: bold; color: #0f172a;">{w_name}</div>
+            {addr_row}
+            {gst_row}
+            <div style="margin-top: 8px;"><span class="badge">✓ {receipt_title}</span></div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="row"><span>Bill No:</span><b>#{invoice_no}</b></div>
+        <div class="row"><span>Customer:</span><b>{name}</b></div>
+        <div class="row"><span>Chukta Date:</span><span>{pay_time}</span></div>
+        <div class="row"><span>Payment Mode:</span><b>{pay_mode}</b></div>
+
+        <div class="divider"></div>
+
+        <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+            <div class="row" style="margin: 0; font-size: 15px;">
+                <span style="font-weight: bold; color: #0f172a;">Total Cleared:</span>
+                <span style="font-weight: bold; color: #16a34a; font-size: 18px;">Rs {cleared_amt}</span>
+            </div>
+            <div class="row" style="margin-top: 4px; font-size: 12px; color: #64748b;">
+                <span>Bacha Balance:</span>
+                <span style="color: #16a34a; font-weight: bold;">Rs 0.00 (Chukta)</span>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 15px; font-size: 11px; color: #94a3b8;">
+            Yeh ek computer dwara prapt payment confirmation parchi hai.
+        </div>
+
+        <button onclick="window.print()" class="print-btn no-print">📄 Download / Print Parchi</button>
+    </div>
+</body>
+</html>'''
+        return p_done
+
+    gst_in_bank = f'<div>GSTIN: <b>{gstin_no}</b></div>' if gstin_no else ''
+
+    if qr and os.path.exists(os.path.join(UPLOAD_DIR, qr)):
+        body_content = '<img src="/qr-img/' + str(qr) + '" width="230" style="margin:10px auto;border-radius:8px;display:block;"><p style="font-size:12px;color:#475569;">Scan with PhonePe, GPay ya Paytm</p>'
+    else:
+        upi = "upi://pay?pa=" + str(def_upi) + "&pn=" + urllib.parse.quote(str(w_name)) + "&am=" + str(amt) + "&cu=INR&tn=Invoice_" + str(invoice_no)
+        qr_api = "https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" + urllib.parse.quote(upi)
+        body_content = '<img src="' + str(qr_api) + '" width="200" style="margin:10px auto;border-radius:8px;display:block;">'
+        body_content += '<a href="' + str(upi) + '" style="display:block;background:#2563eb;color:white;text-decoration:none;padding:10px;border-radius:8px;font-weight:bold;margin:10px 0;">Pay via UPI App</a>'
+        body_content += '<div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:10px; text-align:left; font-size:12px; margin-top:12px;">'
+        body_content += '<div style="font-weight:bold; color:#1e293b; margin-bottom:6px; font-size:13px;">Direct Bank Transfer (NEFT/RTGS)</div>'
+        body_content += f'<div>Bank: <b>{b_name}</b></div><div>A/C No: <b>{acc_no}</b></div><div>IFSC: <b>{ifsc}</b></div><div>Beneficiary: <b>{w_name}</b></div>{gst_in_bank}</div>'
+
+    res_html = '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Pay - ' + str(invoice_no) + '</title></head>'
+    res_html += '<body style="font-family:sans-serif;background:#f3f4f6;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;padding:15px;">'
+    res_html += '<div style="background:white;padding:25px;border-radius:12px;text-align:center;max-width:360px;width:100%;box-shadow:0 2px 10px rgba(0,0,0,0.1);">'
+    res_html += f'<h2 style="margin:0;">{w_name}</h2><p style="color:#64748b;margin:4px 0 12px 0;">Billed to: <b>{name}</b></p>'
+    res_html += f'<div style="font-size:28px;font-weight:bold;color:#16a34a;margin-bottom:8px;">Rs {pay_amt_str}</div>'
+    res_html += f'<p style="font-size:13px;color:#475569;margin-bottom:12px;">Bill No: {invoice_no} | Due: {due}</p>'
+    res_html += body_content
+    res_html += '</div></body></html>'
+    return res_html
+ response_class=HTMLResponse)
+def show_payment_page(invoice_no: str):
+    w_name, def_upi, b_name, acc_no, ifsc, sett_mode, gstin_no, address = get_settings()
+    conn = sqlite3.connect("udhaar_system.db")
+    cur = conn.cursor()
+    cur.execute("SELECT customer_name, pending_amount, due_date, status, custom_qr_path FROM receivables WHERE invoice_no = ?", (invoice_no,))
+    rec = cur.fetchone()
     conn.close()
     if not rec:
         return "<h3>Invoice nahi mila!</h3>"

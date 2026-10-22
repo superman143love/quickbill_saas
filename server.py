@@ -23,22 +23,31 @@ def init_db():
         remaining_balance REAL, payment_mode TEXT, paid_at TEXT
     )""")
     cur.execute("""CREATE TABLE IF NOT EXISTS settings (
-        id INTEGER PRIMARY KEY, wholesaler_name TEXT, upi_id TEXT,
-        bank_name TEXT DEFAULT 'HDFC Bank', account_number TEXT DEFAULT '5010045892145',
-        ifsc_code TEXT DEFAULT 'HDFC0000123', settlement_mode TEXT DEFAULT 'INSTANT'
+        id INTEGER PRIMARY KEY,
+        wholesaler_name TEXT DEFAULT 'Apex Wholesale Distributors',
+        upi_id TEXT DEFAULT 'apexdistributors@upi',
+        bank_name TEXT DEFAULT 'HDFC Bank',
+        account_number TEXT DEFAULT '5010045892145',
+        ifsc_code TEXT DEFAULT 'HDFC0000123',
+        settlement_mode TEXT DEFAULT 'INSTANT'
     )""")
+    
+    # Safe Column Migrations
+    cur.execute("PRAGMA table_info(settings)")
+    s_cols = [r[1] for r in cur.fetchall()]
+    if "bank_name" not in s_cols: cur.execute("ALTER TABLE settings ADD COLUMN bank_name TEXT DEFAULT 'HDFC Bank'")
+    if "account_number" not in s_cols: cur.execute("ALTER TABLE settings ADD COLUMN account_number TEXT DEFAULT '5010045892145'")
+    if "ifsc_code" not in s_cols: cur.execute("ALTER TABLE settings ADD COLUMN ifsc_code TEXT DEFAULT 'HDFC0000123'")
+    if "settlement_mode" not in s_cols: cur.execute("ALTER TABLE settings ADD COLUMN settlement_mode TEXT DEFAULT 'INSTANT'")
+
     cur.execute("SELECT COUNT(*) FROM settings")
     if cur.fetchone()[0] == 0:
-        cur.execute("INSERT INTO settings VALUES (1, 'Apex Wholesale Distributors', 'apexdistributors@upi', 'HDFC Bank', '5010045892145', 'HDFC0000123', 'INSTANT')")
-    cur.execute("PRAGMA table_info(settings)")
-    cols = [r[1] for r in cur.fetchall()]
-    if "bank_name" not in cols: cur.execute("ALTER TABLE settings ADD COLUMN bank_name TEXT DEFAULT 'HDFC Bank'")
-    if "account_number" not in cols: cur.execute("ALTER TABLE settings ADD COLUMN account_number TEXT DEFAULT '5010045892145'")
-    if "ifsc_code" not in cols: cur.execute("ALTER TABLE settings ADD COLUMN ifsc_code TEXT DEFAULT 'HDFC0000123'")
-    if "settlement_mode" not in cols: cur.execute("ALTER TABLE settings ADD COLUMN settlement_mode TEXT DEFAULT 'INSTANT'")
+        cur.execute("INSERT INTO settings (id, wholesaler_name, upi_id, bank_name, account_number, ifsc_code, settlement_mode) VALUES (1, 'Apex Wholesale Distributors', 'apexdistributors@upi', 'HDFC Bank', '5010045892145', 'HDFC0000123', 'INSTANT')")
+
     cur.execute("PRAGMA table_info(receivables)")
     r_cols = [r[1] for r in cur.fetchall()]
     if "custom_qr_path" not in r_cols: cur.execute("ALTER TABLE receivables ADD COLUMN custom_qr_path TEXT DEFAULT ''")
+    
     conn.commit()
     conn.close()
 
@@ -47,10 +56,12 @@ init_db()
 def get_settings():
     conn = sqlite3.connect("udhaar_system.db")
     cur = conn.cursor()
-    cur.execute("SELECT wholesaler_name, upi_id, bank_name, account_number, ifsc_code, settlement_mode FROM settings WHERE id = 1")
+    cur.execute("SELECT wholesaler_name, upi_id, COALESCE(bank_name, 'HDFC Bank'), COALESCE(account_number, '5010045892145'), COALESCE(ifsc_code, 'HDFC0000123'), COALESCE(settlement_mode, 'INSTANT') FROM settings WHERE id = 1")
     row = cur.fetchone()
     conn.close()
-    return row if row else ("Apex Wholesale Distributors", "apexdistributors@upi", "HDFC Bank", "5010045892145", "HDFC0000123", "INSTANT")
+    if row:
+        return row
+    return ("Apex Wholesale Distributors", "apexdistributors@upi", "HDFC Bank", "5010045892145", "HDFC0000123", "INSTANT")
 
 @app.get("/qr-img/{filename}")
 def get_qr_image(filename: str):
@@ -146,9 +157,7 @@ def dashboard():
     out += '<script>'
     out += 'var curDue=0;function openCash(inv,name,due){curDue=due;document.getElementById("m-info").innerText=name+" ("+inv+")";document.getElementById("m-due").innerText=due.toLocaleString("en-IN");document.getElementById("m-inp").value=due;document.getElementById("m-form").action="/record-payment/"+inv;calc();document.getElementById("m").style.display="flex";}'
     out += 'function calc(){var v=parseFloat(document.getElementById("m-inp").value)||0;var r=Math.max(0,curDue-v);document.getElementById("m-rem").innerText="Rs "+r.toLocaleString("en-IN");}'
-    out += 'async function scanParchi(e){var file=e.target.files[0];if(!file)return;var statusDiv=document.getElementById("ocrStatus");statusDiv.innerText="Parchi scan ho rahi hai...";try{const result=await Tesseract.recognize(file,"eng");const text=result.data.text;statusDiv.innerText="";var phoneMatch=text.match(/\\b[6-9]\\d{9}\\b/);var phone=phoneMatch?phoneMatch[0]:"";var amount="";var allNumbers=text.match(/\\b\\d+\\b/g)||[];for(var i=0;i<allNumbers.length;i++){var num=allNumbers[i];if(num!==phone&&num.length>=2&&num.length<=7){amount=num;}}var name="";var lines=text.split("\\n");for(var j=0;j<lines.length;j++){var l=lines[j].trim();if(/name/i.test(l)){name=l.replace(/name[.:\\s-]*/i,"").trim();break;}else if(!name&&/^[A-Za-z\\s]{3,25}$/.test(l)&&!/amount/i.test(l)){name=l;}}var randomId=Math.floor(100+Math.random()*900);document.getElementById("p_inv").value="PARCHI-"+randomId;document.getElementById("p_name").value=name||"Parvez";document.getElementById("p_phone").value=phone;document.getElementById("p_amt").value=amount||"50000";document.getElementById("parchiModal").style.display="flex";}catch(err){statusDiv.innerText="Manual verify karein.";document.getElementById("parchiModal").style.display="flex";}}'
-    out += '</script></body></html>'
-    return out@app.post("/update-settings")
+    out += 'async function scanParchi(e){var file=e.target.files[0];if(!file)return;var statusDiv=document.getElementById("ocrStatus");statusDiv.innerText="Parchi scan ho rahi hai...";try{const result=await Tesseract.recognize(file,"eng");const text=result.data.text;statusDiv.innerText="";var phoneMatch=text.match(/\\b[6-9]\\d{9}\\b/);var phone=phoneMatch?phoneMatch[0]:"";var amount="";var allNumbers=text.match(/\\b\\d+\\b/g)||[];for(var i=0;i<allNumbers.length;i++){var num=allNumbers[i];if(num!==phone&&num.length>=2&&num.length<=7){amount=num;}}var name="";var lines=text.split("\\n");for(var j=0;j<lines.length;j++){var l=lines[j].@app.post("/update-settings")
 def update_settings(
     wholesaler_name: str = Form(...),
     upi_id: str = Form(...),

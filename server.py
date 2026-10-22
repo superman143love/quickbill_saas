@@ -186,4 +186,14 @@ def update_settings(
     """, (wholesaler_name.strip(), gstin.strip(), store_address.strip(), upi_id.strip(), bank_name.strip(), account_number.strip(), ifsc_code.strip(), settlement_mode.strip()))
     conn.commit()
     conn.close()
-    return RedirectResponse(url="/", status_code_=303)
+    return RedirectResponse(url="/", status_code_=303)@app.post("/add-single")
+def add_single_invoice(customer_name: str = Form(...), phone: str = Form(...), invoice_no: str = Form(...), amount: float = Form(...), due_date: str = Form(...)):
+    conn = sqlite3.connect("udhaar_system.db")
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM receivables WHERE invoice_no = ?", (invoice_no.strip(),))
+    if not cur.fetchone():
+        cur.execute("INSERT INTO receivables (customer_name, phone, invoice_no, pending_amount, due_date) VALUES (?, ?, ?, ?, ?)",
+            (customer_name.strip(), phone.strip(), invoice_no.strip(), float(amount), due_date.strip()))
+        conn.commit()
+    conn.close()
+    return RedirectResponse(url="/", status_code=303)

@@ -378,23 +378,24 @@ def show_payment_page(invoice_no: str):
     cur.execute("SELECT customer_name, pending_amount, due_date, status, custom_qr_path FROM receivables WHERE invoice_no = ?", (invoice_no,))
     rec = cur.fetchone()
     conn.close()
-    if not rec: return "<h3>Invoice nahi mila!</h3>"
+    if not rec:
+        return "<h3>Invoice nahi mila!</h3>"
     name, amt, due, status, qr = rec
     pay_amt_str = f"{float(amt):,.2f}"
 
     if status == 'PAID' or amt <= 0.01:
-        return f"""<!DOCTYPE html><html><body style="font-family:sans-serif;background:#f3f4f6;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;">
+        return """<!DOCTYPE html><html><body style="font-family:sans-serif;background:#f3f4f6;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;">
         <div style="background:white;padding:30px;border-radius:12px;text-align:center;box-shadow:0 2px 10px rgba(0,0,0,0.1);">
             <h2 style="color:#16a34a;">Payment Cleared!</h2>
-            <p>Invoice #{invoice_no} is cleared.</p>
-            <small style="color:#64748b;">{w_name}</small>
+            <p>Invoice #""" + str(invoice_no) + """ is cleared.</p>
+            <small style="color:#64748b;">""" + str(w_name) + """</small>
         </div></body></html>"""
 
     if qr and os.path.exists(os.path.join(UPLOAD_DIR, qr)):
-        body_content = f'<img src="/qr-img/{qr}" width="230" style="margin:10px auto;border-radius:8px;display:block;"><p style="font-size:12px;color:#475569;">Scan with PhonePe, GPay ya Paytm</p>'
+        body_content = '<img src="/qr-img/' + str(qr) + '" width="230" style="margin:10px auto;border-radius:8px;display:block;"><p style="font-size:12px;color:#475569;">Scan with PhonePe, GPay ya Paytm</p>'
     else:
-        upi = f"upi://pay?pa={def_upi}&pn={urllib.parse.quote(w_name)}&am={amt}&cu=INR&tn=Invoice_{invoice_no}"
-        qr_api = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={urllib.parse.quote(upi)}"
+        upi = "upi://pay?pa=" + str(def_upi) + "&pn=" + urllib.parse.quote(str(w_name)) + "&am=" + str(amt) + "&cu=INR&tn=Invoice_" + str(invoice_no)
+        qr_api = "https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" + urllib.parse.quote(upi)
         body_content = f"""
         <img src="{qr_api}" width="200" style="margin:10px auto;border-radius:8px;display:block;">
         <a href="{upi}" style="display:block;background:#2563eb;color:white;text-decoration:none;padding:10px;border-radius:8px;font-weight:bold;margin:10px 0;">Pay via UPI App</a>
@@ -407,14 +408,14 @@ def show_payment_page(invoice_no: str):
         </div>
         """
 
-    return f"""<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Pay - {invoice_no}</title></head>
+    res_html = """<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Pay - """ + str(invoice_no) + """</title></head>
     <body style="font-family:sans-serif;background:#f3f4f6;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;padding:15px;">
         <div style="background:white;padding:25px;border-radius:12px;text-align:center;max-width:360px;width:100%;box-shadow:0 2px 10px rgba(0,0,0,0.1);">
-            <h2 style="margin:0;">{w_name}</h2>
-            <p style="color:#64748b;margin:4px 0 12px 0;">Billed to: <b>{name}</b></p>
-            <div style="font-size:28px;font-weight:bold;color:#16a34a;margin-bottom:8px;">Rs {pay_amt_str}</div>
-            <p style="font-size:13px;color:#475569;margin-bottom:12px;">Invoice: {invoice_no} | Due: {due}</p>
-            {body_content}
+            <h2 style="margin:0;">""" + str(w_name) + """</h2>
+            <p style="color:#64748b;margin:4px 0 12px 0;">Billed to: <b>""" + str(name) + """</b></p>
+            <div style="font-size:28px;font-weight:bold;color:#16a34a;margin-bottom:8px;">Rs """ + str(pay_amt_str) + """</div>
+            <p style="font-size:13px;color:#475569;margin-bottom:12px;">Invoice: """ + str(invoice_no) + """ | Due: """ + str(due) + """</p>
+            """ + body_content + """
         </div>
     </body></html>"""
     return res_html

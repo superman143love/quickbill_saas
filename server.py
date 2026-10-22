@@ -30,14 +30,12 @@ def init_db():
     cur.execute("SELECT COUNT(*) FROM settings")
     if cur.fetchone()[0] == 0:
         cur.execute("INSERT INTO settings VALUES (1, 'Apex Wholesale Distributors', 'apexdistributors@upi', 'HDFC Bank', '5010045892145', 'HDFC0000123', 'INSTANT')")
-    
     cur.execute("PRAGMA table_info(settings)")
     cols = [r[1] for r in cur.fetchall()]
     if "bank_name" not in cols: cur.execute("ALTER TABLE settings ADD COLUMN bank_name TEXT DEFAULT 'HDFC Bank'")
     if "account_number" not in cols: cur.execute("ALTER TABLE settings ADD COLUMN account_number TEXT DEFAULT '5010045892145'")
     if "ifsc_code" not in cols: cur.execute("ALTER TABLE settings ADD COLUMN ifsc_code TEXT DEFAULT 'HDFC0000123'")
     if "settlement_mode" not in cols: cur.execute("ALTER TABLE settings ADD COLUMN settlement_mode TEXT DEFAULT 'INSTANT'")
-
     cur.execute("PRAGMA table_info(receivables)")
     r_cols = [r[1] for r in cur.fetchall()]
     if "custom_qr_path" not in r_cols: cur.execute("ALTER TABLE receivables ADD COLUMN custom_qr_path TEXT DEFAULT ''")
@@ -123,6 +121,7 @@ def dashboard():
     p_body = p_rows if p_rows else '<tr><td colspan="5" style="padding:12px;text-align:center;color:#94a3b8;">Sabhi clear hain!</td></tr>'
     l_body = l_rows if l_rows else '<tr><td colspan="5" style="padding:12px;text-align:center;color:#94a3b8;">Koi history nahi hai abhi.</td></tr>'
     total_amt_str = f"{float(total_amount):,.2f}"
+
     return f"""<!DOCTYPE html><html><head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QuickBill SaaS</title>
@@ -144,7 +143,7 @@ def dashboard():
                 <h2 style="margin:0; font-size:22px; color:#38bdf8;">QuickBill Cloud SaaS</h2>
                 <div style="font-size:12px; color:#94a3b8; margin-top:4px;">Store: <b>{w_name}</b> | Payout: <b>{sett_text}</b></div>
             </div>
-            <button onclick="document.getElementById('settModal').style.display='flex'" style="background:#2563eb; color:white; border:none; padding:10px 16px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:13px;">Settings</button>
+            <button onclick="document.getElementById('settModal').style.display='flex'" style="background:#2563eb; color:white; border:none; padding:10px 16px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:13px;">⚙️ Settings</button>
         </div>
         
         <div class="grid">
@@ -290,46 +289,7 @@ def dashboard():
 
             try {{
                 const result = await Tesseract.recognize(file, 'eng');
-                const text = result.data.text;
-                statusDiv.innerText = "";
-
-                var phoneMatch = text.match(/\\b[6-9]\\d{{9}}\\b/);
-                var phone = phoneMatch ? phoneMatch[0] : "";
-
-                var amount = "";
-                var allNumbers = text.match(/\\b\\d+\\b/g) || [];
-                for (var i = 0; i < allNumbers.length; i++) {{
-                    var num = allNumbers[i];
-                    if (num !== phone && num.length >= 2 && num.length <= 7) {{
-                        amount = num;
-                    }}
-                }}
-
-                var name = "";
-                var lines = text.split('\\n');
-                for (var j = 0; j < lines.length; j++) {{
-                    var l = lines[j].trim();
-                    if (/name/i.test(l)) {{
-                        name = l.replace(/name[.:\\s-]*/i, '').trim();
-                        break;
-                    }} else if (!name && /^[A-Za-z\\s]{{3,25}}$/.test(l) && !/amount/i.test(l)) {{
-                        name = l;
-                    }}
-                }}
-
-                var randomId = Math.floor(100 + Math.random() * 900);
-                document.getElementById('p_inv').value = 'PARCHI-' + randomId;
-                document.getElementById('p_name').value = name || 'Parvez';
-                document.getElementById('p_phone').value = phone;
-                document.getElementById('p_amt').value = amount || '50000';
-                document.getElementById('parchiModal').style.display = 'flex';
-            }} catch (err) {{
-                statusDiv.innerText = "Manual verify karein.";
-                document.getElementById('parchiModal').style.display = 'flex';
-            }}
-        }}
-    </script></body></html>"""
-    @app.post("/update-settings")
+                cons@app.post("/update-settings")
 def update_settings(
     wholesaler_name: str = Form(...),
     upi_id: str = Form(...),

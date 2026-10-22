@@ -417,3 +417,4 @@ def show_payment_page(invoice_no: str):
             {body_content}
         </div>
     </body></html>"""
+    return res_html

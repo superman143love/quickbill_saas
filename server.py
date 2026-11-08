@@ -164,7 +164,8 @@ def dashboard():
     out += 'function calc(){var v=parseFloat(document.getElementById("m-inp").value)||0;var r=Math.max(0,curDue-v);document.getElementById("m-rem").innerText="Rs "+r.toLocaleString("en-IN");}'
     out += 'function scanParchi(e){var file=e.target.files[0];if(!file)return;var d=Math.floor(100+Math.random()*900);document.getElementById("p_inv").value="PARCHI-"+d;document.getElementById("p_name").value="Parvez";document.getElementById("p_phone").value="918801105491";document.getElementById("p_amt").value="50000";document.getElementById("parchiModal").style.display="flex";}'
     out += '</script></body></html>'
-    return out@app.post("/update-settings")
+    return out
+    @app.post("/update-settings")
 def update_settings(wholesaler_name: str = Form(...), gstin: str = Form(""), store_address: str = Form(""), upi_id: str = Form(...), bank_name: str = Form(...), account_number: str = Form(...), ifsc_code: str = Form(...), settlement_mode: str = Form(...)):
     conn = sqlite3.connect("udhaar_system.db")
     cur = conn.cursor()

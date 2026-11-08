@@ -165,7 +165,8 @@ def dashboard():
     out += 'function scanParchi(e){var file=e.target.files[0];if(!file)return;var d=Math.floor(100+Math.random()*900);document.getElementById("p_inv").value="PARCHI-"+d;document.getElementById("p_name").value="Parvez";document.getElementById("p_phone").value="918801105491";document.getElementById("p_amt").value="50000";document.getElementById("parchiModal").style.display="flex";}'
     out += '</script></body></html>'
     return out
-    @app.post("/update-settings")
+
+@app.post("/update-settings")
 def update_settings(wholesaler_name: str = Form(...), gstin: str = Form(""), store_address: str = Form(""), upi_id: str = Form(...), bank_name: str = Form(...), account_number: str = Form(...), ifsc_code: str = Form(...), settlement_mode: str = Form(...)):
     conn = sqlite3.connect("udhaar_system.db")
     cur = conn.cursor()
@@ -173,6 +174,31 @@ def update_settings(wholesaler_name: str = Form(...), gstin: str = Form(""), sto
     conn.commit()
     conn.close()
     return RedirectResponse(url="/", status_code=303)
+
+@app.post("/add-single")
+def add_single_invoice(customer_name: str = Form(...), phone: str = Form(...), invoice_no: str = Form(...), amount: float = Form(...), due_date: str = Form(...)):
+    conn = sqlite3.connect("udhaar_system.db")
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM receivables WHERE invoice_no = ?", (invoice_no.strip(),))
+    if not cur.fetchone():
+        cur.execute("INSERT INTO receivables (customer_name, phone, invoice_no, pending_amount, due_date) VALUES (?, ?, ?, ?, ?)", (customer_name.strip(), phone.strip(), invoice_no.strip(), float(amount), due_date.strip()))
+        conn.commit()
+    conn.close()
+    return RedirectResponse(url="/", status_code=303)
+
+@app.post("/upload-qr/{invoice_no}")
+async def upload_custom_qr(invoice_no: str, qr_file: UploadFile = File(...)):
+    ext = os.path.splitext(qr_file.filename)[1]
+    name = f"qr_{invoice_no}_{int(datetime.now().timestamp())}{ext}"
+    contents = await qr_file.read()
+    with open(os.path.join(UPLOAD_DIR, name), "wb") as f: f.write(contents)
+    conn = sqlite3.connect("udhaar_system.db")
+    cur = conn.cursor()
+    cur.execute("UPDATE receivables SET custom_qr_path = ? WHERE invoice_no = ?", (name, invoice_no))
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/", status_code=303)
+
 @app.post("/record-payment/{invoice_no}")
 def record_payment(invoice_no: str, paid_amount: float = Form(...), payment_mode: str = Form("Cash")):
     conn = sqlite3.connect("udhaar_system.db")

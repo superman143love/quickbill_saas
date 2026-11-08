@@ -357,8 +357,8 @@ def show_payment_page(invoice_no: str):
     return res_html
  @app.get("/pay/{invoice_no}")
 def
-show_payment_page
-(invoice_no: str):
+show_payment_page(invoice_no:
+str):
     w_name, def_upi, b_name, acc_no, ifsc, sett_mode, gstin_no, address = get_settings()
     conn = sqlite3.connect("udhaar_system.db")
     cur = conn.cursor()

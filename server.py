@@ -289,4 +289,5 @@ def show_payment_page(invoice_no: str):
     res_html += f'<p style="font-size:13px;color:#475569;margin-bottom:12px;">Bill No: {invoice_no} | Due: {due}</p>'
     res_html += body_content
     res_html += '</div></body></html>'
-    return HTMLResponse(res_html)
+    return HTMLResponse(res_html)psycopg2-binary
+

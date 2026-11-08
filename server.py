@@ -166,7 +166,7 @@ def dashboard():
     out += '</script></body></html>'
     return out
     @app.post("/update-settings")
-def update_settings(wholesaler_name: str = Form(...), gstin: str = Form(""), store_address: str = Form(""), upi_id: str = Form(...), bank_name: str = Form(...), account_number: str = Form(...), ifsc_code: str = Form(...), settlement_mode: str = Form(...)):
+    def update_settings(wholesaler_name: str = Form(...), gstin: str = Form(""), store_address: str = Form(""), upi_id: str = Form(...), bank_name: str = Form(...), account_number: str = Form(...), ifsc_code: str = Form(...), settlement_mode: str = Form(...)):
     conn = sqlite3.connect("udhaar_system.db")
     cur = conn.cursor()
     cur.execute("""UPDATE settings SET wholesaler_name = ?, gstin = ?, store_address = ?, upi_id = ?, bank_name = ?, account_number = ?, ifsc_code = ?, settlement_mode = ? WHERE id = 1""", (wholesaler_name.strip(), gstin.strip(), store_address.strip(), upi_id.strip(), bank_name.strip(), account_number.strip(), ifsc_code.strip(), settlement_mode.strip()))

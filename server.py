@@ -356,7 +356,6 @@ def show_payment_page(invoice_no: str):
     res_html += '</div></body></html>'
     return res_html
     @app.get("/pay/{invoice_no}")
-    def
     show_payment_page(invoice_no:
     str):
     w_name, def_upi, b_name, acc_no, ifsc, sett_mode, gstin_no, address = get_settings()

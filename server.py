@@ -4,7 +4,7 @@ import pandas as pd
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 
-DATABASE_URL = os.environ.get("DATABASE_URL")
+DATABASE_URL = (os.environ.get("DATABASE_URL") or "").strip()
 if DATABASE_URL:
     import psycopg2
     from psycopg2.extras import RealDictCursor
